@@ -77,21 +77,21 @@ class SubtitleGenerator:
             "[V4+ Styles]",
             "Format: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, BackColour, Bold, Italic, Underline, StrikeOut, ScaleX, ScaleY, Spacing, Angle, BorderStyle, Outline, Shadow, Alignment, MarginL, MarginR, MarginV, Encoding",
             # ViralMain: Clean white base font, bold black border
-            f"Style: ViralMain,Impact,76,&H00FFFFFF,&H0000FFFF,&H00000000,&H80000000,-1,0,0,0,100,100,2,0,1,6,3,2,60,60,440,1",
+            f"Style: ViralMain,Impact,80,&H00FFFFFF,&H0000FFFF,&H00000000,&H80000000,-1,0,0,0,100,100,2,0,1,7,3,2,60,60,420,1",
             # ViralActive: Golden popped highlight
-            f"Style: ViralActive,Impact,82,{active_color},&H0000FFFF,&H00000000,&H80000000,-1,0,0,0,110,110,2,0,1,7,4,2,60,60,440,1",
-            # HookBanner: Top banner, bold uppercase, high CTR
-            f"Style: HookBanner,Impact,68,&H00000000,&H00FFFFFF,&H0025B3E6,&H0025B3E6,-1,0,0,0,100,100,4,0,3,14,0,8,60,60,220,1",
+            f"Style: ViralActive,Impact,88,{active_color},&H0000FFFF,&H00000000,&H80000000,-1,0,0,0,118,118,2,0,1,8,4,2,60,60,420,1",
+            # HookBanner: Persistent top banner, bold vibrant uppercase, high CTR
+            f"Style: HookBanner,Impact,74,&H0000FFFF,&H00FFFFFF,&H00000000,&H80000000,-1,0,0,0,100,100,3,0,1,8,4,8,40,40,240,1",
             "",
             "[Events]",
             "Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text",
         ]
 
-        # 1. Top Hook Banner (shown during first 2.8 seconds)
+        # 1. Top Hook Banner (stays persistent across entire clip for maximum retention)
         if hook_text and hook_text.strip():
             clean_hook = hook_text.strip().upper()
             ass_lines.append(
-                f"Dialogue: 1,0:00:00.00,0:00:02.80,HookBanner,,0,0,0,,{clean_hook}"
+                f"Dialogue: 1,0:00:00.00,0:01:00.00,HookBanner,,0,0,0,,{clean_hook}"
             )
 
         # 2. Word Groups with Active Highlight

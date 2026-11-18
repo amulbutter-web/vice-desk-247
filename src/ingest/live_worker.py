@@ -172,18 +172,64 @@ class LiveIngestWorker:
         ai_hook = groq_pool.generate_viral_hook(creator_name=creator_name, game=game)
         ai_meta = groq_pool.generate_reels_metadata(creator_name=creator_name, game=game, hook=ai_hook)
 
-        # 6. Generate Kinetic Word-by-Word ASS Subtitles with AI Hook Banner
+        # 5b. Audit & Elevate Hype via HypeSupervisorAgent (LLM Quality Gate)
+        from src.qc.hype_supervisor import hype_supervisor_instance
+        dur_sec = boundaries["duration_ms"] / 1000.0
+        lang_choice = "hi" if creator_name in ("CarryisLive", "Mythpat", "Dattrax Plays", "RakaZone Gaming", "AS Gaming", "8bit Goldy") else "en"
+        audit = hype_supervisor_instance.audit_and_elevate_clip(
+            creator=creator_name,
+            event_category="GTA6_ACTION",
+            headline=f"{creator_name} GTA 6 Launch Moment",
+            duration_sec=dur_sec,
+            candidate_hook=ai_hook,
+            candidate_caption=ai_meta.get("caption", ""),
+            lang=lang_choice,
+        )
+        ai_hook = audit.get("enhanced_hook", ai_hook)
+        if audit.get("enhanced_caption"):
+            ai_meta["caption"] = audit["enhanced_caption"]
+
+        # 6. Generate Kinetic Word-by-Word ASS Subtitles across full video duration
         subtitle_gen = SubtitleGenerator()
         ass_sub_path = settings.rendered_dir / f"subs_{trace_id[:8]}.ass"
         
-        words = [
-            {"word": "WATCH", "start_ms": 500, "end_ms": 1100},
-            {"word": "THIS", "start_ms": 1100, "end_ms": 1600},
-            {"word": "INSANE", "start_ms": 1600, "end_ms": 2300},
-            {"word": "MOMENT", "start_ms": 2300, "end_ms": 3100},
-            {"word": "RIGHT", "start_ms": 3100, "end_ms": 3700},
-            {"word": "NOW!", "start_ms": 3700, "end_ms": 4400},
-        ]
+        full_dur_ms = boundaries["duration_ms"]
+        words = []
+        curr_ms = 600
+
+        if lang_choice == "hi":
+            phrases = [
+                ["BHAI", "YEH", "KYA", "HUA!"],
+                ["LOOK", "AT", "THIS", "CAR!"],
+                ["STRIP", "CLUB", "FOUND", "💀"],
+                ["UNBELIEVABLE", "GTA", "6", "GRAPHICS!"],
+                ["POLICE", "GPS", "TRACKER", "ALERT!"],
+                ["NO", "WAY", "THIS", "HAPPENED!"],
+                ["WAIT", "FOR", "THE", "END!"],
+                ["REALEST", "REACTION", "EVER", "RECORDED!"],
+            ]
+        else:
+            phrases = [
+                ["NO", "WAY", "WATCH", "THIS!"],
+                ["LOOK", "AT", "THIS", "PHYSICS!"],
+                ["FIRST", "TIME", "IN", "GTA6!"],
+                ["HE", "ACTUALLY", "FOUND", "IT!"],
+                ["POLICE", "SCANNING", "EVERY", "CAMERA!"],
+                ["WAIT", "FOR", "THE", "CLIMAX!"],
+                ["BEST", "LAUNCH", "MOMENT", "EVER!"],
+                ["DROP", "A", "LIKE", "NOW!"],
+            ]
+
+        phrase_idx = 0
+        while curr_ms < full_dur_ms - 1200:
+            p = phrases[phrase_idx % len(phrases)]
+            phrase_idx += 1
+            w_dur = 420
+            for w in p:
+                words.append({"word": w, "start_ms": curr_ms, "end_ms": min(full_dur_ms, curr_ms + w_dur)})
+                curr_ms += w_dur + 60
+            curr_ms += 450
+
         subtitle_gen.generate_ass(
             words=words,
             output_ass_path=str(ass_sub_path),

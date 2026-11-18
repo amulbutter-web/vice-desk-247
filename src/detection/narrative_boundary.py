@@ -11,10 +11,10 @@ from src.config import settings
 class NarrativeBoundaryEngine:
     def __init__(
         self,
-        default_pre_roll_ms: int = 4000,
-        default_post_roll_ms: int = 5000,
-        min_duration_ms: int = 10000,
-        max_duration_ms: int = 90000,
+        default_pre_roll_ms: int = 15000,
+        default_post_roll_ms: int = 18000,
+        min_duration_ms: int = 30000,
+        max_duration_ms: int = 50000,
     ):
         self.default_pre_roll_ms = default_pre_roll_ms
         self.default_post_roll_ms = default_post_roll_ms

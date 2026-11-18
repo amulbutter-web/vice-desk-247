@@ -89,8 +89,8 @@ class FiltergraphGenerator:
             filters.append(f"[{last_v}]{sub_chain}[v_subs]")
             last_v = "v_subs"
 
-        # Audio loudness normalization to platform standards (-14 LUFS, -1.0 dBTP)
-        audio_filter = "loudnorm=I=-14:TP=-1.0:LRA=11"
+        # Audio loudness normalization to high-energy standard (-13 LUFS, -0.5 dBTP) with 1.35x dialogue punch
+        audio_filter = "volume=1.35,loudnorm=I=-13:TP=-0.5:LRA=9"
 
         complex_filter = ";".join(filters)
 

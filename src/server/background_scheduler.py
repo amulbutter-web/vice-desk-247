@@ -59,7 +59,7 @@ class AutonomousPublisherDaemon:
     Does NOT require the user's laptop.
     """
 
-    def __init__(self, interval_sec: int = 300):
+    def __init__(self, interval_sec: int = 120):
         self.interval_sec = interval_sec
         self.worker = LiveIngestWorker()
         self.yt_publisher = YouTubePublisher()
@@ -249,6 +249,90 @@ class AutonomousPublisherDaemon:
             )
             time.sleep(self.interval_sec)
 
+    def run_batch_instagram_blast(self, target_count: int = 15) -> List[Dict[str, Any]]:
+        """
+        Executes sequential rendering and publication of top scheduled breakthrough events
+        directly to Instagram Reels (leveraging 100/day Meta quota).
+        """
+        logger.info(f"[BATCH_BLAST] Starting autonomous blast of {target_count} Instagram Reels...")
+        results = []
+        for i in range(target_count):
+            if settings.emergency_kill_switch:
+                logger.warning("[BATCH_BLAST] Emergency kill switch active — aborting batch.")
+                break
+
+            ev = self.ledger.get_next_scheduled_event()
+            if not ev:
+                logger.info("[BATCH_BLAST] No more SCHEDULED events in ledger.")
+                break
+
+            creator = ev["creator"]
+            url = ev["stream_url"]
+            section = ev["section_range"]
+            hook = ev["viral_hook"]
+            caption = ev.get("metadata", {}).get("caption", f"{ev['headline']} in GTA 6!")
+            event_id = ev["id"]
+            lang = "hi" if creator in ("Mythpat", "CarryisLive", "Dattrax Plays", "RakaZone Gaming", "AS Gaming", "8bit Goldy") else "en"
+
+            logger.info(f"[BATCH_BLAST] [{i+1}/{target_count}] Processing {ev['headline']} ({creator})")
+
+            try:
+                # 1. Render 1080p 60FPS Blur-Fill Ultra clip (30-45s)
+                res = self.worker.process_url_job(
+                    url=url,
+                    creator_name=creator,
+                    game="GTA 6",
+                    layout_mode="blur_fill",
+                    section_range=section,
+                    publish_to_youtube=False,
+                )
+                video_path = res.get("output_path")
+                if not video_path or not Path(video_path).exists():
+                    logger.warning(f"[BATCH_BLAST] Render failed for {creator}")
+                    continue
+
+                video_filename = Path(video_path).name
+                public_video_url = f"https://vice-desk-intelligence-production.up.railway.app/media/{video_filename}"
+
+                # 2. Instagram Reels Publish via Meta Graph API
+                ig_caption = (
+                    f"{hook} 🎮🔥\n\n"
+                    f"{caption}\n\n"
+                    f"#GTA6 #GTASix #Gaming #Reels #Shorts #{creator.replace(' ', '')} #GTA6Launch"
+                )
+
+                container_id = self.ig_publisher.create_reel_container(
+                    video_url=public_video_url,
+                    caption=ig_caption,
+                    account_ref=self.ig_publisher.account_id,
+                )
+                status = self.ig_publisher.poll_container_status(container_id)
+                if status == "FINISHED":
+                    ig_res = self.ig_publisher.publish_container(
+                        container_id=container_id,
+                        account_ref=self.ig_publisher.account_id,
+                    )
+                    remote_id = ig_res.get("remote_id")
+                    self.ig_published_count += 1
+                    self.ledger.update_event_status(event_id, "PUBLISHED", video_path)
+                    logger.info(f"[BATCH_BLAST] ✅ [{i+1}/{target_count}] Published {creator} to Instagram: {remote_id}")
+                    results.append({
+                        "creator": creator,
+                        "headline": ev["headline"],
+                        "remote_media_id": remote_id,
+                        "status": "PUBLISHED",
+                    })
+
+                # Small cooldown between Instagram posts to protect rate limits
+                time.sleep(10)
+
+            except Exception as e:
+                logger.error(f"[BATCH_BLAST] Error publishing {creator}: {e}", exc_info=True)
+                time.sleep(4)
+
+        logger.info(f"[BATCH_BLAST] Finished batch blast. Total published: {len(results)}")
+        return results
+
 
 # Global singleton — started by app.py on_event("startup")
-daemon_instance = AutonomousPublisherDaemon(interval_sec=300)
+daemon_instance = AutonomousPublisherDaemon(interval_sec=120)

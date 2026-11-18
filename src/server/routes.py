@@ -371,6 +371,26 @@ def publish_instagram(req: InstagramPublishRequest):
         raise HTTPException(status_code=500, detail=f"Meta Graph API error: {str(e)}")
 
 
+class BatchInstagramPublishRequest(BaseModel):
+    count: int = 15
+    auto_push_youtube_on_reset: bool = True
+
+
+@router.post("/publish/batch-instagram")
+def trigger_batch_instagram_publish(req: BatchInstagramPublishRequest, background_tasks: BackgroundTasks):
+    """
+    Triggers asynchronous automated batch blast to Instagram Reels (15-20 reels).
+    Renders 1080p Blur-Fill Ultra clips from the FirstTimeLedger and publishes each sequentially.
+    """
+    from src.server.background_scheduler import daemon_instance
+    background_tasks.add_task(daemon_instance.run_batch_instagram_blast, req.count)
+    return {
+        "status": "BATCH_ENGAGED",
+        "target_count": req.count,
+        "message": f"Autonomous batch blast of {req.count} Instagram Reels initiated in background.",
+    }
+
+
 @router.post("/publish/youtube")
 def publish_youtube(req: YouTubePublishRequest):
     """

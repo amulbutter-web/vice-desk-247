@@ -99,16 +99,19 @@ class SupervisorAgent:
             if not daemon.get("running"):
                 issues.append("🔴 24/7 Daemon is NOT running!")
             else:
-                published = daemon.get("published_count", 0)
+                published = daemon.get("published_count", 0) + daemon.get("ig_published_count", 0)
                 quota_hit = daemon.get("daily_quota_hit", False)
-                logger.info("[SUPERVISOR] Daemon running, published=%d, quota_hit=%s", published, quota_hit)
+                logger.info(
+                    "[SUPERVISOR] Daemon running, total_published=%d (YT:%d, IG:%d), quota_hit=%s",
+                    published, daemon.get("published_count", 0), daemon.get("ig_published_count", 0), quota_hit
+                )
 
-                # Stall detection
+                # Stall detection (only flag if neither YT nor IG published for 3 cycles and no quota excuse)
                 if published == self.last_published_count:
                     self.stall_cycles += 1
-                    if self.stall_cycles >= self.MAX_STALL_CYCLES:
+                    if self.stall_cycles >= self.MAX_STALL_CYCLES and not quota_hit:
                         issues.append(
-                            f"⚠️ Daemon STALLED: published count stuck at {published} for {self.stall_cycles} cycles"
+                            f"⚠️ Pipeline idle: total published count at {published} for {self.stall_cycles} cycles"
                         )
                 else:
                     self.stall_cycles = 0
