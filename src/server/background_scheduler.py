@@ -416,4 +416,5 @@ class AutonomousPublisherDaemon:
 
 
 # Global singleton — started by app.py on_event("startup")
-daemon_instance = AutonomousPublisherDaemon(interval_sec=120)
+daemon_interval = int(os.environ.get("DAEMON_INTERVAL_SEC", "1200"))
+daemon_instance = AutonomousPublisherDaemon(interval_sec=daemon_interval)
