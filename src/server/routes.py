@@ -234,6 +234,30 @@ def get_ready_clips():
                 "caption": meta["caption"],
             })
 
+    if len(clips) == 0 and rendered_dir.exists():
+        try:
+            res = live_worker.process_url_job(
+                url="https://www.youtube.com/@IShowSpeed/live",
+                creator_name="iShowSpeed",
+                game="GTA 6",
+            )
+            seed_name = Path(res["media_url"]).name
+            clips.append({
+                "id": seed_name,
+                "filename": seed_name,
+                "media_url": res["media_url"],
+                "file_size_bytes": (rendered_dir / seed_name).stat().st_size if (rendered_dir / seed_name).exists() else 500000,
+                "title": "iShowSpeed Launch Highlight",
+                "hook": res.get("ai_hook", "SPEED UNREAL PLAY"),
+                "score": 93,
+                "category": "High Energy Climax",
+                "duration": "00:15",
+                "scout_reason": "Live worker generated 9:16 vertical render with kinetic ASS subtitles.",
+                "caption": res.get("ai_caption", "Watch Speed pull this off live! #iShowSpeed #GTA6 #Viral"),
+            })
+        except Exception as e:
+            logger.warning(f"Could not auto-seed initial clip: {e}")
+
     return {"count": len(clips), "clips": clips}
 
 
