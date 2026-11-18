@@ -209,7 +209,31 @@ class InstagramPublisher:
             }
 
         headers = {"User-Agent": "Mozilla/5.0"}
-        # 1. Verify User Identity
+
+        # 1. Direct Instagram Account Check (for tokens generated directly for Instagram accounts)
+        candidate_ids = [self.account_id, getattr(settings, "instagram_account_id", None), "17841467596649798"]
+        candidate_ids = [c for c in candidate_ids if c]
+        for acc_id in candidate_ids:
+            try:
+                acc_url = f"{self.base_url}/{acc_id}?fields=id,username,name,profile_picture_url&access_token={tok}"
+                req = urllib.request.Request(acc_url, headers=headers, method="GET")
+                with urllib.request.urlopen(req, timeout=12) as resp:
+                    acc_data = json.loads(resp.read().decode("utf-8"))
+                    if acc_data.get("id"):
+                        return {
+                            "status": "CONNECTED",
+                            "valid": True,
+                            "user_name": acc_data.get("name") or acc_data.get("username"),
+                            "instagram_account_id": acc_data.get("id"),
+                            "username": acc_data.get("username", "verified_user"),
+                            "display_name": acc_data.get("name", acc_data.get("username")),
+                            "profile_picture_url": acc_data.get("profile_picture_url"),
+                            "message": f"Connected to Instagram Account @{acc_data.get('username')}",
+                        }
+            except Exception:
+                pass
+
+        # 2. Verify User Identity via Facebook Graph API
         me_url = f"{self.base_url}/me?fields=id,name&access_token={tok}"
         try:
             req = urllib.request.Request(me_url, headers=headers, method="GET")
@@ -239,13 +263,15 @@ class InstagramPublisher:
                 "message": f"Network error contacting Meta Graph API: {str(e)}"
             }
 
-        # 2. Discover Linked Instagram Business Accounts via Facebook Pages
+        user_name = me_data.get("name") if isinstance(me_data, dict) else "Meta User"
+
+        # 3. Discover Linked Instagram Business Accounts via Facebook Pages
         pages_url = f"{self.base_url}/me/accounts?fields=id,name,instagram_business_account{{id,username,name,profile_picture_url}}&access_token={tok}"
         try:
             req = urllib.request.Request(pages_url, headers=headers, method="GET")
             with urllib.request.urlopen(req, timeout=12) as resp:
                 pages_data = json.loads(resp.read().decode("utf-8"))
-                pages = pages_data.get("data", [])
+                pages = pages_data.get("data", []) if isinstance(pages_data, dict) else []
                 
                 for page in pages:
                     ig_acc = page.get("instagram_business_account")
@@ -253,7 +279,7 @@ class InstagramPublisher:
                         return {
                             "status": "CONNECTED",
                             "valid": True,
-                            "user_name": me_data.get("name"),
+                            "user_name": user_name,
                             "page_id": page.get("id"),
                             "page_name": page.get("name"),
                             "instagram_account_id": ig_acc.get("id"),
@@ -266,7 +292,7 @@ class InstagramPublisher:
                 return {
                     "status": "NO_INSTAGRAM_LINKED",
                     "valid": True,
-                    "user_name": me_data.get("name"),
+                    "user_name": user_name,
                     "page_count": len(pages),
                     "message": "Token is valid for Meta user, but no Instagram Professional account is linked to your Facebook Pages. Please link your Instagram account to a Facebook Page in Meta Business Suite.",
                 }
@@ -274,7 +300,7 @@ class InstagramPublisher:
             return {
                 "status": "CONNECTED_PARTIAL",
                 "valid": True,
-                "user_name": me_data.get("name"),
+                "user_name": user_name,
                 "error": str(e),
                 "message": "Meta User authenticated, but unable to query linked Pages.",
             }
