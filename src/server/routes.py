@@ -6,7 +6,8 @@ import os
 import logging
 from pathlib import Path
 from typing import Dict, Any, List, Optional
-from fastapi import APIRouter, HTTPException, Depends, BackgroundTasks
+from fastapi import APIRouter, HTTPException, Depends, BackgroundTasks, Query, Request
+from fastapi.responses import PlainTextResponse
 from pydantic import BaseModel
 from src.config import settings
 from src.db.database import get_db_session
@@ -511,3 +512,39 @@ def reroll_hook(req: RerollHookRequest):
             "hashtags": f"#{req.game.replace(' ', '')} #{req.creator_name.replace(' ', '')} #GamingClips",
             "title": f"{req.creator_name} clutch",
         }
+
+
+@router.get("/webhooks/instagram")
+@router.get("/webhook/instagram")
+def verify_instagram_webhook(
+    hub_mode: Optional[str] = Query(None, alias="hub.mode"),
+    hub_verify_token: Optional[str] = Query(None, alias="hub.verify_token"),
+    hub_challenge: Optional[str] = Query(None, alias="hub.challenge"),
+):
+    """
+    Meta / Instagram Webhook Verification Handshake.
+    Responds to Meta GET request with hub.challenge when token matches.
+    """
+    expected_token = os.environ.get("META_VERIFY_TOKEN", "vicedesk_meta_verify_2026")
+    logger.info(f"Instagram Webhook Verification: mode={hub_mode}, token={hub_verify_token}")
+    if hub_mode == "subscribe" and hub_verify_token == expected_token:
+        logger.info(f"Instagram Webhook verified successfully! Returning challenge: {hub_challenge}")
+        return PlainTextResponse(content=hub_challenge or "", status_code=200)
+    logger.warning(f"Webhook verification failed. Expected '{expected_token}', got '{hub_verify_token}'")
+    raise HTTPException(status_code=403, detail="Verification token mismatch")
+
+
+@router.post("/webhooks/instagram")
+@router.post("/webhook/instagram")
+async def receive_instagram_webhook(request: Request):
+    """
+    Receives real-time events from Meta / Instagram Webhooks.
+    """
+    try:
+        payload = await request.json()
+        logger.info(f"Received Instagram Webhook Event: {payload}")
+        return {"status": "EVENT_RECEIVED"}
+    except Exception as e:
+        logger.warning(f"Error parsing webhook JSON: {e}")
+        return {"status": "OK"}
+

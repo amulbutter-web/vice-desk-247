@@ -1,7 +1,9 @@
 """
 FastAPI Application Entrypoint for Operator Web Dashboard and REST API.
 """
-from fastapi import FastAPI
+import os
+from fastapi import FastAPI, Query, Request, HTTPException
+from fastapi.responses import PlainTextResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.middleware.cors import CORSMiddleware
 from pathlib import Path
@@ -28,6 +30,27 @@ init_db()
 
 # Mount API routes
 app.include_router(router, prefix="/api")
+
+
+# Meta / Instagram Webhook root-level endpoints
+@app.get("/webhooks/instagram")
+@app.get("/webhook/instagram")
+def root_verify_instagram_webhook(
+    hub_mode: str = Query(None, alias="hub.mode"),
+    hub_verify_token: str = Query(None, alias="hub.verify_token"),
+    hub_challenge: str = Query(None, alias="hub.challenge"),
+):
+    expected_token = os.environ.get("META_VERIFY_TOKEN", "vicedesk_meta_verify_2026")
+    if hub_mode == "subscribe" and hub_verify_token == expected_token:
+        return PlainTextResponse(content=hub_challenge or "", status_code=200)
+    raise HTTPException(status_code=403, detail="Verification token mismatch")
+
+
+@app.post("/webhooks/instagram")
+@app.post("/webhook/instagram")
+async def root_receive_instagram_webhook(request: Request):
+    return {"status": "EVENT_RECEIVED"}
+
 
 
 # Mount Rendered Media Files for Web Previews and Direct Downloads
