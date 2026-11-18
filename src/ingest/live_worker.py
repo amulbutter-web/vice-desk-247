@@ -98,9 +98,13 @@ class LiveIngestWorker:
             str(synth_file),
         ]
         try:
+            logger.info(f"Generating synthetic fallback clip with {self.ffmpeg_bin}...")
             res = subprocess.run(cmd, capture_output=True, text=True, timeout=30)
-            if res.returncode == 0 and synth_file.exists():
+            if res.returncode == 0 and synth_file.exists() and synth_file.stat().st_size > 1000:
+                logger.info(f"Synthetic sample successfully generated: {synth_file}")
                 return synth_file
+            else:
+                logger.error(f"FFmpeg synthetic fallback failed (code {res.returncode}): {res.stderr[:200]}")
         except Exception as e:
             logger.error(f"Synthetic fallback generation failed: {e}")
 
