@@ -185,8 +185,17 @@ class InstagramPublisher:
         account_id: Optional[str] = None,
         dry_run: Optional[bool] = None,
     ):
-        self.access_token = access_token or getattr(settings, "instagram_access_token", None)
-        self.account_id = account_id or getattr(settings, "instagram_account_id", None)
+        self.access_token = (
+            access_token
+            or os.environ.get("INSTAGRAM_ACCESS_TOKEN")
+            or getattr(settings, "instagram_access_token", None)
+        )
+        self.account_id = (
+            account_id
+            or os.environ.get("INSTAGRAM_ACCOUNT_ID")
+            or getattr(settings, "instagram_account_id", None)
+            or "17841467596649798"
+        )
         # If no credentials provided, default to dry_run
         if dry_run is not None:
             self.dry_run = dry_run
