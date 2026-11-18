@@ -175,6 +175,7 @@ class StreamIngestRequest(BaseModel):
     creator_name: Optional[str] = "iShowSpeed"
     game: Optional[str] = "GTA 6"
     priority: int = 100
+    auto_publish_youtube: bool = False
 
 
 @router.get("/clips/ready")
@@ -394,6 +395,7 @@ def ingest_stream_url(req: StreamIngestRequest, background_tasks: BackgroundTask
                 url=req.url,
                 creator_name=req.creator_name,
                 game=req.game,
+                publish_to_youtube=req.auto_publish_youtube,
             )
             return {
                 "status": "COMPLETED",
@@ -406,6 +408,7 @@ def ingest_stream_url(req: StreamIngestRequest, background_tasks: BackgroundTask
                 "duration_ms": result["duration_ms"],
                 "resolution": result["resolution"],
                 "qc_passed": result["qc_passed"],
+                "youtube_publish": result.get("youtube_publish"),
                 "message": f"Successfully clipped and rendered 9:16 Reel for {req.creator_name}!",
             }
         except Exception as e:
@@ -418,6 +421,7 @@ def ingest_stream_url(req: StreamIngestRequest, background_tasks: BackgroundTask
         url=req.url,
         creator_name=req.creator_name,
         game=req.game,
+        publish_to_youtube=req.auto_publish_youtube,
     )
 
     return {

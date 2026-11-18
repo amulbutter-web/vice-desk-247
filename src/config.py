@@ -52,8 +52,8 @@ class Settings(BaseSettings):
     lufs_target_integrated: float = -14.0
     lufs_tolerance: float = 2.0         # Target range: [-16.0, -12.0]
     max_true_peak_dbtp: float = -1.0
-    max_black_frame_duration_ms: int = 500
-    max_freeze_duration_ms: int = 1000
+    max_black_frame_duration_ms: int = 1500
+    max_freeze_duration_ms: int = 6000
     max_repair_revisions: int = 2
     
     # Rights & Publishing

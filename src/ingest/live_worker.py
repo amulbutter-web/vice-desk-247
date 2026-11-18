@@ -61,8 +61,8 @@ class LiveIngestWorker:
                 logger.info(f"Downloading stream sample via yt-dlp from: {url}")
                 cmd = [
                     self.ytdlp_bin,
-                    "-f", "best[ext=mp4]/best",
-                    "--download-sections", "*00:00:10-00:00:45",
+                    "-f", "bestvideo[height<=720]+bestaudio/best[height<=720]/best",
+                    "--download-sections", "*00:00:10-00:00:40",
                     "--max-filesize", "50M",
                     "--no-playlist",
                     "-o", str(target_file),
@@ -118,6 +118,7 @@ class LiveIngestWorker:
         creator_name: str = "iShowSpeed",
         game: str = "GTA 6",
         layout_mode: str = "split_cam_game",
+        publish_to_youtube: bool = False,
     ) -> Dict[str, Any]:
         """
         Executes complete end-to-end processing pipeline for a stream:
@@ -272,6 +273,24 @@ class LiveIngestWorker:
             session.add(audit)
             session.flush()
 
+        yt_publish_info = None
+        if publish_to_youtube:
+            try:
+                from src.publishing.publishers import YouTubePublisher
+                yt_pub = YouTubePublisher()
+                yt_title = ai_meta.get("title", f"{creator_name} - {ai_hook}")
+                yt_desc = f"{ai_meta.get('caption', '')}\n\n{ai_meta.get('hashtags', '')}\n\nStream: {url}\nClipped by ViceDesk 24/7 AI Intelligence."
+                yt_publish_info = yt_pub.upload_short(
+                    video_path=str(output_mp4_path),
+                    title=yt_title,
+                    description=yt_desc,
+                    privacy_status="public",
+                )
+                logger.info(f"Published to YouTube Shorts: {yt_publish_info.get('video_url')}")
+            except Exception as e:
+                logger.warning(f"Auto-upload to YouTube Shorts failed: {e}")
+                yt_publish_info = {"status": "FAILED", "error": str(e)}
+
         return {
             "status": "COMPLETED",
             "trace_id": trace_id,
@@ -287,4 +306,5 @@ class LiveIngestWorker:
             "hook": ai_hook,
             "score": 96 if all_hard_pass else 80,
             "caption": f"{ai_meta.get('caption', '')} {ai_meta.get('hashtags', '')}".strip() or f"Unreal live moment from {creator_name}! #GTA6 #{game.replace(' ', '')}",
+            "youtube_publish": yt_publish_info,
         }
