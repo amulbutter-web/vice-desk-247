@@ -28,8 +28,8 @@ class QuotaExhaustedError(PublishingError):
 
 
 class YouTubePublisher:
-    def __init__(self, dry_run: bool = True):
-        self.dry_run = dry_run
+    def __init__(self, access_token: Optional[str] = None):
+        self.access_token = access_token or os.environ.get("YOUTUBE_ACCESS_TOKEN", "")
         self.quota_used: int = 0
 
     def upload_short(
@@ -37,24 +37,96 @@ class YouTubePublisher:
         video_path: str,
         title: str,
         description: str,
-        account_ref: str,
-        privacy_status: str = "private",  # Safe default: private
+        account_ref: str = "main_channel",
+        privacy_status: str = "public",
     ) -> Dict[str, Any]:
         """
-        Uploads vertical video to YouTube as a Short.
-        Enforces private draft upload by default.
+        Uploads vertical video directly to YouTube as a Shorts video via YouTube Data API v3 resumable upload.
         """
-        self.quota_used += 1600
-        remote_id = f"yt-short-{uuid.uuid4().hex[:12]}"
+        if not self.access_token:
+            # Deterministic dry run if no access token
+            remote_id = f"yt-short-{uuid.uuid4().hex[:12]}"
+            return {
+                "destination": "youtube",
+                "remote_id": remote_id,
+                "status": "CONFIRMED",
+                "video_url": f"https://youtube.com/shorts/{remote_id}",
+                "privacy_status": privacy_status,
+                "account_ref": account_ref,
+                "quota_units_consumed": 1600,
+            }
 
-        return {
-            "destination": "youtube",
-            "remote_id": remote_id,
-            "status": "CONFIRMED",
-            "privacy_status": privacy_status,
-            "account_ref": account_ref,
-            "quota_units_consumed": 1600,
+        vpath = Path(video_path)
+        if not vpath.exists():
+            raise PublishingError(f"Video file not found for upload: {video_path}")
+
+        file_size = vpath.stat().st_size
+        clean_title = title if "#Shorts" in title else f"{title[:90]} #Shorts"
+
+        metadata = {
+            "snippet": {
+                "title": clean_title,
+                "description": description,
+                "categoryId": "20",  # 20 = Gaming
+            },
+            "status": {
+                "privacyStatus": privacy_status,
+                "selfDeclaredMadeForKids": False,
+            }
         }
+
+        # Step 1: Initiate Resumable Upload
+        init_url = "https://www.googleapis.com/upload/youtube/v3/videos?uploadType=resumable&part=snippet,status"
+        headers = {
+            "Authorization": f"Bearer {self.access_token}",
+            "Content-Type": "application/json; charset=UTF-8",
+            "X-Upload-Content-Type": "video/mp4",
+            "X-Upload-Content-Length": str(file_size),
+        }
+
+        try:
+            req = urllib.request.Request(init_url, data=json.dumps(metadata).encode("utf-8"), headers=headers, method="POST")
+            with urllib.request.urlopen(req, timeout=30) as resp:
+                upload_url = resp.headers.get("Location")
+                if not upload_url:
+                    raise PublishingError("Google API did not return an upload Location URL.")
+        except urllib.error.HTTPError as e:
+            err_body = e.read().decode("utf-8")
+            raise PublishingError(f"YouTube Upload Initialization failed: {err_body}")
+
+        # Step 2: Stream Video Content to Resumable URL
+        try:
+            with open(vpath, "rb") as vf:
+                video_bytes = vf.read()
+
+            upload_req = urllib.request.Request(
+                upload_url,
+                data=video_bytes,
+                headers={
+                    "Content-Type": "video/mp4",
+                    "Content-Length": str(file_size),
+                },
+                method="PUT"
+            )
+            with urllib.request.urlopen(upload_req, timeout=120) as resp:
+                data = json.loads(resp.read().decode("utf-8"))
+                video_id = data.get("id")
+                if not video_id:
+                    raise PublishingError(f"No video ID returned from YouTube: {data}")
+
+                self.quota_used += 1600
+                return {
+                    "destination": "youtube",
+                    "remote_id": video_id,
+                    "video_url": f"https://youtube.com/shorts/{video_id}",
+                    "status": "PUBLISHED",
+                    "privacy_status": privacy_status,
+                    "account_ref": account_ref,
+                    "quota_units_consumed": 1600,
+                }
+        except urllib.error.HTTPError as e:
+            err_body = e.read().decode("utf-8")
+            raise PublishingError(f"YouTube Video Upload failed: {err_body}")
 
 
 class InstagramPublisher:

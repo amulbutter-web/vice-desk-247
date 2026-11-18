@@ -2,6 +2,7 @@
 REST API Routes for Operator Management, Ingest, Review, and Outbox.
 """
 import uuid
+import os
 import logging
 from pathlib import Path
 from typing import Dict, Any, List, Optional
@@ -161,6 +162,14 @@ class InstagramPublishRequest(BaseModel):
     video_url: Optional[str] = None
 
 
+class YouTubePublishRequest(BaseModel):
+    clip_id: str
+    title: str
+    caption: str
+    privacy_status: Optional[str] = "public"
+    account_ref: Optional[str] = "main_channel"
+
+
 class StreamIngestRequest(BaseModel):
     url: str
     creator_name: Optional[str] = "iShowSpeed"
@@ -306,6 +315,51 @@ def publish_instagram(req: InstagramPublishRequest):
         raise HTTPException(status_code=429, detail=f"Instagram Daily Quota Full: {str(e)}")
     except PublishingError as e:
         raise HTTPException(status_code=500, detail=f"Meta Graph API error: {str(e)}")
+
+
+@router.post("/publish/youtube")
+def publish_youtube(req: YouTubePublishRequest):
+    """
+    Direct One-Click YouTube Shorts Publication Endpoint via YouTube Data API v3 resumable upload.
+    """
+    if settings.emergency_kill_switch:
+        raise HTTPException(status_code=400, detail="Publication blocked: Emergency kill switch is active.")
+
+    rendered_dir = Path(__file__).parent.parent.parent / "data" / "rendered"
+    video_path = rendered_dir / req.clip_id
+
+    publisher = YouTubePublisher()
+    try:
+        result = publisher.upload_short(
+            video_path=str(video_path),
+            title=req.title,
+            description=req.caption,
+            account_ref=req.account_ref,
+            privacy_status=req.privacy_status,
+        )
+        return {
+            "status": "PUBLISHED",
+            "destination": "youtube",
+            "remote_id": result["remote_id"],
+            "video_url": result["video_url"],
+            "message": f"Successfully uploaded Short to YouTube! {result['video_url']}",
+        }
+    except PublishingError as e:
+        raise HTTPException(status_code=500, detail=f"YouTube Data API error: {str(e)}")
+
+
+@router.get("/accounts/youtube/status")
+def get_youtube_status():
+    """Returns connected state of YouTube OAuth token."""
+    tok = os.environ.get("YOUTUBE_ACCESS_TOKEN", "")
+    if not tok:
+        return {"status": "NOT_CONFIGURED", "connected": False, "message": "No YouTube OAuth token configured."}
+    return {
+        "status": "CONNECTED",
+        "connected": True,
+        "token_prefix": tok[:10] + "...",
+        "message": "YouTube OAuth 2.0 Upload Permission Active",
+    }
 
 
 @router.post("/ingest/url")

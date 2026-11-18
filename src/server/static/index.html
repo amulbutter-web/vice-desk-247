@@ -398,6 +398,10 @@
         <span class="dot" style="background:#e1306c;"></span>
         <span id="instagramStatusText">INSTAGRAM: SETUP REQUIRED</span>
       </div>
+      <div class="pill pill-cyan" id="youtubePill">
+        <span class="dot dot-cyan"></span>
+        <span id="youtubeStatusText">YOUTUBE: READY TO POST</span>
+      </div>
     </div>
   </header>
 
@@ -429,10 +433,15 @@
         </div>
 
         <div class="studio-actions">
-          <button class="btn btn-gold" id="publishReelsBtn" style="width:100%; justify-content:center;" onclick="publishCurrentToInstagram()">
-            🚀 1-Click Publish to Instagram Reels
-          </button>
           <div style="display:grid; grid-template-columns:1fr 1fr; gap:8px;">
+            <button class="btn btn-gold" id="publishReelsBtn" onclick="publishCurrentToInstagram()">
+              📸 Instagram Reel
+            </button>
+            <button class="btn btn-cyan" id="publishYouTubeBtn" onclick="publishCurrentToYouTube()">
+              ▶️ YouTube Short
+            </button>
+          </div>
+          <div style="display:grid; grid-template-columns:1fr 1fr; gap:8px; margin-top:8px;">
             <button class="btn btn-dark" onclick="downloadCurrentMp4()">⬇️ Download 9:16</button>
             <button class="btn btn-dark" onclick="rerollAiHook()">🪄 Reroll AI Hook</button>
           </div>
@@ -734,6 +743,39 @@
       } finally {
         btn.disabled = false;
         btn.innerText = '🚀 1-Click Publish to Instagram Reels';
+      }
+    }
+
+    async function publishCurrentToYouTube() {
+      if (!currentClip) {
+        showToast('No clip selected to publish.', false);
+        return;
+      }
+      const btn = document.getElementById('publishYouTubeBtn');
+      btn.disabled = true;
+      btn.innerText = '⏳ Uploading Short to YouTube...';
+
+      try {
+        const res = await fetch('/api/publish/youtube', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            clip_id: currentClip.id,
+            title: document.getElementById('aiHookField').value || currentClip.title,
+            caption: document.getElementById('aiCaptionField').value,
+            privacy_status: 'public',
+            account_ref: 'main_channel',
+          })
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.detail || 'YouTube upload rejected');
+        showToast(`✅ Successfully uploaded to YouTube! Link: ${data.video_url}`, true);
+        window.open(data.video_url, '_blank');
+      } catch (e) {
+        showToast(`❌ YouTube Error: ${e.message}`, false);
+      } finally {
+        btn.disabled = false;
+        btn.innerText = '▶️ YouTube Short';
       }
     }
 
