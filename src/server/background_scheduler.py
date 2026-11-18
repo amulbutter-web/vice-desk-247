@@ -15,7 +15,7 @@ import json
 import urllib.request
 import urllib.parse
 from pathlib import Path
-from typing import Optional
+from typing import Optional, List, Dict, Any
 
 from src.config import settings
 from src.ingest.live_worker import LiveIngestWorker
