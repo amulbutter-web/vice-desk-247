@@ -507,14 +507,26 @@ def ingest_stream_url(req: StreamIngestRequest, background_tasks: BackgroundTask
     }
 
 
+_ig_status_cache = {}
+_ig_status_time = 0.0
+
 @router.get("/accounts/instagram/status")
 def get_instagram_status():
     """
     Returns verified status of the configured Meta Instagram account.
-    Validates token directly against Meta Graph API v19.0.
+    Validates token directly against Meta Graph API v19.0 (cached for 5 minutes to prevent rate limits).
     """
+    global _ig_status_cache, _ig_status_time
+    now = time.time()
+    if _ig_status_cache and (now - _ig_status_time < 300):
+        return _ig_status_cache
+
     publisher = InstagramPublisher()
-    return publisher.verify_credentials()
+    res = publisher.verify_credentials()
+    if res.get("valid"):
+        _ig_status_cache = res
+        _ig_status_time = now
+    return res
 
 
 @router.post("/accounts/instagram/connect")

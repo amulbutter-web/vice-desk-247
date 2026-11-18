@@ -375,9 +375,10 @@ class InstagramPublisher:
                 raise TokenInvalidError("Instagram access token has expired or is invalid (Error 190).")
             raise PublishingError(f"Failed to create Instagram Reels container: {err_body}")
 
-    def poll_container_status(self, container_id: str, max_attempts: int = 15, delay_sec: float = 3.0) -> str:
+    def poll_container_status(self, container_id: str, max_attempts: int = 15, delay_sec: float = 8.0) -> str:
         """
         Step 2: Polls container status until FINISHED or ERROR.
+        Handles transient Meta rate limits (Error 4) gracefully with backoff.
         """
         if self.dry_run:
             return "FINISHED"
@@ -400,6 +401,9 @@ class InstagramPublisher:
                 err_body = e.read().decode("utf-8")
                 if "190" in err_body:
                     raise TokenInvalidError("Instagram access token has expired or is invalid (Error 190).")
+                if '"code":4' in err_body or "request limit reached" in err_body:
+                    time.sleep(15.0)
+                    continue
                 raise PublishingError(f"Error checking container status: {err_body}")
 
         raise PublishingError(f"Timed out waiting for Reel container {container_id} to finish processing.")
