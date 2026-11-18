@@ -23,22 +23,24 @@ from src.publishing.publishers import YouTubePublisher, InstagramPublisher, Publ
 from src.detection.trend_scout import TrendScoutEngine, ViralHotspot
 from src.detection.first_time_ledger import FirstTimeLedger
 from src.detection.chat_miner import chat_miner_instance
+from src.detection.stream_scout_agent import StreamScoutAgent
 
 logger = logging.getLogger("autonomous_worker")
 
-# All 11 target GTA 6 launch streams
+# All 12 target GTA 6 launch streams — IShowSpeed & Mega-Streamers prioritized at Index 0
 CONTINUOUS_STREAMS = [
-    {"creator": "TGG",            "url": "https://www.youtube.com/watch?v=xMXp80Cntxw", "game": "GTA 6", "lang": "en"},
-    {"creator": "Mythpat",        "url": "https://www.youtube.com/watch?v=LMbea5SozeM", "game": "GTA 6", "lang": "hi"},
-    {"creator": "Typical Gamer",  "url": "https://www.youtube.com/watch?v=3QjXNSf6keg", "game": "GTA 6", "lang": "en"},
-    {"creator": "Ducky Reloaded", "url": "https://www.youtube.com/watch?v=XuYm5c0Xfs4", "game": "GTA 6", "lang": "en"},
-    {"creator": "CarryisLive",    "url": "https://www.youtube.com/watch?v=irNhWMG560k", "game": "GTA 6", "lang": "hi"},
-    {"creator": "Dattrax Plays",  "url": "https://www.youtube.com/watch?v=isL0EoUff1A", "game": "GTA 6", "lang": "hi"},
-    {"creator": "RakaZone Gaming","url": "https://www.youtube.com/watch?v=GCkc4t1ZWYs", "game": "GTA 6", "lang": "hi"},
-    {"creator": "Kreek",          "url": "https://www.youtube.com/watch?v=dy-oCN2NxfA", "game": "GTA 6", "lang": "en"},
-    {"creator": "AS Gaming",      "url": "https://www.youtube.com/watch?v=u1OGXGfOEI0", "game": "GTA 6", "lang": "hi"},
-    {"creator": "8bit Goldy",     "url": "https://www.youtube.com/watch?v=NdR6owrFWvA", "game": "GTA 6", "lang": "hi"},
-    {"creator": "Destin",         "url": "https://www.youtube.com/watch?v=SJtQRxbFvFg", "game": "GTA 6", "lang": "en"},
+    {"creator": "IShowSpeed",     "url": "https://www.youtube.com/watch?v=qSyo5d-dVzA", "game": "GTA 6", "lang": "en", "base_priority": 100},
+    {"creator": "CarryisLive",    "url": "https://www.youtube.com/watch?v=irNhWMG560k", "game": "GTA 6", "lang": "hi", "base_priority": 95},
+    {"creator": "Typical Gamer",  "url": "https://www.youtube.com/watch?v=3QjXNSf6keg", "game": "GTA 6", "lang": "en", "base_priority": 90},
+    {"creator": "Mythpat",        "url": "https://www.youtube.com/watch?v=LMbea5SozeM", "game": "GTA 6", "lang": "hi", "base_priority": 85},
+    {"creator": "TGG",            "url": "https://www.youtube.com/watch?v=xMXp80Cntxw", "game": "GTA 6", "lang": "en", "base_priority": 80},
+    {"creator": "Ducky Reloaded", "url": "https://www.youtube.com/watch?v=XuYm5c0Xfs4", "game": "GTA 6", "lang": "en", "base_priority": 75},
+    {"creator": "Dattrax Plays",  "url": "https://www.youtube.com/watch?v=isL0EoUff1A", "game": "GTA 6", "lang": "hi", "base_priority": 70},
+    {"creator": "RakaZone Gaming","url": "https://www.youtube.com/watch?v=GCkc4t1ZWYs", "game": "GTA 6", "lang": "hi", "base_priority": 65},
+    {"creator": "Kreek",          "url": "https://www.youtube.com/watch?v=dy-oCN2NxfA", "game": "GTA 6", "lang": "en", "base_priority": 60},
+    {"creator": "AS Gaming",      "url": "https://www.youtube.com/watch?v=u1OGXGfOEI0", "game": "GTA 6", "lang": "hi", "base_priority": 55},
+    {"creator": "8bit Goldy",     "url": "https://www.youtube.com/watch?v=NdR6owrFWvA", "game": "GTA 6", "lang": "hi", "base_priority": 50},
+    {"creator": "Destin",         "url": "https://www.youtube.com/watch?v=SJtQRxbFvFg", "game": "GTA 6", "lang": "en", "base_priority": 45},
 ]
 
 # 4:30 PM IST = 11:00 UTC. Stream starts ~4:15 PM, so 15 min in = game entry
@@ -65,6 +67,8 @@ class AutonomousPublisherDaemon:
         self.yt_publisher = YouTubePublisher()
         self.ig_publisher = InstagramPublisher()
         self.trend_scout = TrendScoutEngine()
+        self.scout_agent = StreamScoutAgent()
+        self.ranked_streams: List[Dict[str, Any]] = []
         self.ledger = FirstTimeLedger()
         self.running = False
         self._thread: Optional[threading.Thread] = None
@@ -129,7 +133,15 @@ class AutonomousPublisherDaemon:
                 self.current_stream_idx += 1
                 logger.info(f"[DAEMON] Processing Historic First-Time Event: {next_first_time['headline']} ({creator})")
             else:
-                stream = CONTINUOUS_STREAMS[self.current_stream_idx % len(CONTINUOUS_STREAMS)]
+                if not self.ranked_streams or (self.current_stream_idx % len(CONTINUOUS_STREAMS) == 0):
+                    try:
+                        self.ranked_streams = self.scout_agent.evaluate_and_rank_streams(CONTINUOUS_STREAMS)
+                    except Exception as sc_err:
+                        logger.warning(f"[DAEMON] Scout agent ranking fallback: {sc_err}")
+                        self.ranked_streams = CONTINUOUS_STREAMS
+
+                active_streams = self.ranked_streams if self.ranked_streams else CONTINUOUS_STREAMS
+                stream = active_streams[self.current_stream_idx % len(active_streams)]
                 dynamic_targets = self.trend_scout.get_dynamic_section_ranges()
                 target = dynamic_targets[self.current_section_idx % len(dynamic_targets)]
                 section = target["section"]
@@ -140,14 +152,25 @@ class AutonomousPublisherDaemon:
 
                 creator = stream["creator"]
                 url = stream["url"]
-                game = stream["game"]
+                game = stream.get("game", "GTA 6")
                 lang = stream.get("lang", "en")
 
-                # Craft high-converting context hook via Groq
-                viral_info = self.trend_scout.craft_viral_metadata(creator_name=creator, hotspot=hotspot, lang=lang)
-                hook = viral_info["hook"]
-                title = viral_info["title"]
-                caption = viral_info["caption"]
+                # Craft high-converting context hook via Groq Scout Agent with fallback
+                try:
+                    scout_plan = self.scout_agent.generate_viral_plan_for_stream(
+                        creator=creator,
+                        title=stream.get("title", f"{creator} GTA 6"),
+                        lang=lang,
+                    )
+                    hook = scout_plan["hook"]
+                    title = scout_plan["title"]
+                    caption = scout_plan["caption"]
+                except Exception as sp_err:
+                    logger.debug(f"[DAEMON] Scout plan fallback to trend_scout: {sp_err}")
+                    viral_info = self.trend_scout.craft_viral_metadata(creator_name=creator, hotspot=hotspot, lang=lang)
+                    hook = viral_info["hook"]
+                    title = viral_info["title"]
+                    caption = viral_info["caption"]
 
                 logger.info(f"[DAEMON] Scouting {creator} for '{hotspot.name}' — section {section}")
 

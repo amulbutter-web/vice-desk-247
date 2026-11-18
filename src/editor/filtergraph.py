@@ -58,12 +58,16 @@ class FiltergraphGenerator:
             last_v = "v_base"
 
         elif mode == "blur_fill":
-            # 16:9 gameplay centered + 25px Gaussian blurred background
+            # 16:9 gameplay centered + 25px Gaussian blurred background + dynamic kinetic zoom (1.0x -> 1.08x)
+            fg_h = int(canvas_w * 9 / 16)
+            if fg_h % 2 != 0:
+                fg_h += 1
+            clip_dur = max(duration_sec, 5.0)
             blur_graph = (
                 f"[0:v]split=2[v_bg_in][v_fg_in];"
                 f"[v_bg_in]scale={canvas_w}:{canvas_h}:force_original_aspect_ratio=increase,"
                 f"crop={canvas_w}:{canvas_h},boxblur=25:5,eq=brightness=-0.25[v_bg];"
-                f"[v_fg_in]scale={canvas_w}:-1[v_fg];"
+                f"[v_fg_in]zoompan=z='1+0.08*sin(PI*on/({fps}*{clip_dur:.2f}))':d=1:x='iw/2-(iw/zoom/2)':y='ih/2-(ih/zoom/2)':s={canvas_w}x{fg_h}:fps={fps}[v_fg];"
                 f"[v_bg][v_fg]overlay=(W-w)/2:(H-h)/2[v_base]"
             )
             filters.append(blur_graph)
