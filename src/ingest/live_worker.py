@@ -80,10 +80,33 @@ class LiveIngestWorker:
             "(KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
         )
 
-        # 3. Primary Method: yt-dlp -g + FFmpeg direct slice with User-Agent
+        # 3. Primary Method: Native yt-dlp slice (fast, exact timestamps, merges audio/video in 1080p60)
         if os.path.exists(self.ytdlp_bin) and (url.startswith("http://") or url.startswith("https://")):
             try:
-                logger.info(f"Extracting live stream URLs for {url} [{start_str} +{duration_sec}s]...")
+                logger.info(f"Downloading stream footage [{section_range}] via yt-dlp: {url}...")
+                cmd_native = [
+                    self.ytdlp_bin,
+                    "-f", "bv*[ext=mp4]+ba[ext=m4a]/b[ext=mp4]/best",
+                    "--download-sections", section_range,
+                    "--user-agent", ua,
+                    "--force-overwrites",
+                    "--no-playlist",
+                    "--no-warnings",
+                    "-o", str(target_file),
+                    url,
+                ]
+                res_nat = subprocess.run(cmd_native, capture_output=True, text=True, timeout=120)
+                if res_nat.returncode == 0 and target_file.exists() and target_file.stat().st_size > 500_000:
+                    logger.info(f"Native yt-dlp captured genuine footage: {target_file} ({target_file.stat().st_size / (1024*1024):.2f} MB)")
+                    return target_file
+                else:
+                    logger.warning(f"Native yt-dlp returned code {res_nat.returncode}: {res_nat.stderr[-200:] if res_nat.stderr else ''}")
+            except Exception as en:
+                logger.warning(f"Native yt-dlp slice error: {en}")
+
+            # 4. Fallback Method: yt-dlp -g + FFmpeg direct slice with proper HTTP User-Agent header
+            try:
+                logger.info(f"Fallback: Extracting live stream URLs for {url} [{start_str} +{duration_sec}s]...")
                 cmd_g = [
                     self.ytdlp_bin,
                     "-g",
@@ -95,14 +118,15 @@ class LiveIngestWorker:
                 res_g = subprocess.run(cmd_g, capture_output=True, text=True, timeout=25)
                 if res_g.returncode == 0 and res_g.stdout.strip():
                     stream_urls = res_g.stdout.strip().splitlines()
+                    headers = f"User-Agent: {ua}\r\n"
                     if len(stream_urls) >= 2:
                         v_url, a_url = stream_urls[0], stream_urls[1]
                         cmd_ff = [
                             self.ffmpeg_bin, "-y",
-                            "-user_agent", ua,
+                            "-headers", headers,
                             "-ss", start_str,
                             "-i", v_url,
-                            "-user_agent", ua,
+                            "-headers", headers,
                             "-ss", start_str,
                             "-i", a_url,
                             "-t", str(duration_sec),
@@ -114,7 +138,7 @@ class LiveIngestWorker:
                         v_url = stream_urls[0]
                         cmd_ff = [
                             self.ffmpeg_bin, "-y",
-                            "-user_agent", ua,
+                            "-headers", headers,
                             "-ss", start_str,
                             "-i", v_url,
                             "-t", str(duration_sec),
@@ -124,32 +148,12 @@ class LiveIngestWorker:
 
                     res_ff = subprocess.run(cmd_ff, capture_output=True, text=True, timeout=60)
                     if res_ff.returncode == 0 and target_file.exists() and target_file.stat().st_size > 500_000:
-                        logger.info(f"Genuine stream footage captured: {target_file} ({target_file.stat().st_size / (1024*1024):.2f} MB)")
+                        logger.info(f"Fallback stream footage captured: {target_file} ({target_file.stat().st_size / (1024*1024):.2f} MB)")
                         return target_file
                     else:
-                        logger.warning(f"FFmpeg direct slice failed (code {res_ff.returncode}): {res_ff.stderr[-200:] if res_ff.stderr else ''}")
+                        logger.warning(f"Fallback FFmpeg direct slice failed (code {res_ff.returncode}): {res_ff.stderr[-200:] if res_ff.stderr else ''}")
             except Exception as eg:
                 logger.warning(f"Direct stream slice error: {eg}")
-
-            # 4. Secondary Method: Native yt-dlp slice without external ffmpeg downloader
-            try:
-                logger.info(f"Retrying with native yt-dlp slice [{section_range}]...")
-                cmd_native = [
-                    self.ytdlp_bin,
-                    "-f", "bv*[ext=mp4]+ba[ext=m4a]/b[ext=mp4]/best",
-                    "--download-sections", section_range,
-                    "--user-agent", ua,
-                    "--force-overwrites",
-                    "--no-playlist",
-                    "-o", str(target_file),
-                    url,
-                ]
-                res_nat = subprocess.run(cmd_native, capture_output=True, text=True, timeout=60)
-                if res_nat.returncode == 0 and target_file.exists() and target_file.stat().st_size > 500_000:
-                    logger.info(f"Native yt-dlp captured genuine footage: {target_file}")
-                    return target_file
-            except Exception as en:
-                logger.warning(f"Native yt-dlp slice error: {en}")
 
         # CRITICAL HARD QUALITY GATE: Never return dummy sample footage for social media publishing
         raise RuntimeError(f"Unable to download genuine live stream footage from {url}. Cycle aborted to prevent duplicate/dummy posting.")
