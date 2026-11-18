@@ -24,6 +24,7 @@ data/rendered/*
 !data/rendered/carry_beach_rampage_75s.mp4
 !data/rendered/carry_stripclub_part1_rendered.mp4
 !data/rendered/carry_stripclub_part2_rendered.mp4
+!data/rendered/speed_live_moment_1795034.mp4
 data/platform.db*
 data/public_url.txt
 *.log
