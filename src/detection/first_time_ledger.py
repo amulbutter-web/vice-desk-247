@@ -20,6 +20,20 @@ logger = logging.getLogger("first_time_ledger")
 # Curated catalog of 20 historic First-Time GTA 6 Launch Breakthroughs across all streams
 SEEDED_FIRST_TIME_EVENTS = [
     {
+        "creator": "CarryisLive",
+        "event_category": "5_STAR_POLICE_CHASE",
+        "headline": "CarryMinati Truck Rampage On Beach & 5-Star Police Shootout Until Wasted",
+        "stream_url": "https://www.youtube.com/watch?v=irNhWMG560k",
+        "stream_timestamp_offset": "07:44:00",
+        "section_range": "*07:44:00-07:45:15",
+        "viral_hook": "CARRYMINATI 5-STAR BEACH RAMPAGE IN GTA 6 💀🚨",
+        "priority": 12,
+        "metadata_json": {
+            "tags": ["CarryMinati", "5StarPolice", "BeachRampage", "CarryisLive", "GTA6Wasted", "ViceCity"],
+            "caption": "CarryMinati stole a massive wrecking truck, rampaged through Vice City beach, fought 5-star SWAT, hijacked cop car, until wasted! Full 75s chaos! 💀🚨 #GTA6 #CarryMinati #CarryisLive #GTA6Launch #GamingReels",
+        },
+    },
+    {
         "creator": "Mythpat",
         "event_category": "GPS_CAR_TRACKER",
         "headline": "Mythpat's Stolen Car Has A Hidden GPS Tracker In GTA 6",
