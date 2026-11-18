@@ -60,7 +60,7 @@ class AutonomousPublisherDaemon:
     Does NOT require the user's laptop.
     """
 
-    def __init__(self, interval_sec: int = 120):
+    def __init__(self, interval_sec: int = 1200):  # 20 min high-retention pacing
         self.interval_sec = interval_sec
         self.worker = LiveIngestWorker()
         self.yt_publisher = YouTubePublisher()
@@ -230,9 +230,21 @@ class AutonomousPublisherDaemon:
                 video_path = res.get("output_path")
 
                 if not video_path or not Path(video_path).exists():
-                    logger.warning("[DAEMON] No rendered output for %s", creator)
+                    logger.warning("[DAEMON] No rendered output for %s — skipping social publish", creator)
                     self.consecutive_errors += 1
-                    time.sleep(self.interval_sec)
+                    time.sleep(120)
+                    continue
+
+                v_file = Path(video_path)
+                # Hard quality gate: Must be genuine high-res render > 1.5MB and cannot be dummy sample footage
+                if v_file.stat().st_size < 1_500_000:
+                    logger.warning("[DAEMON] Rendered video for %s is under 1.5MB (%d bytes). Skipping social publish.", creator, v_file.stat().st_size)
+                    time.sleep(120)
+                    continue
+
+                if any(bad in v_file.name.lower() for bad in ["sample", "synth", "0ddc3702"]):
+                    logger.error("[DAEMON] HARD QUALITY BLOCK: Attempted to publish dummy/fallback video %s for %s! Aborting publish.", v_file.name, creator)
+                    time.sleep(120)
                     continue
 
                 self.consecutive_errors = 0

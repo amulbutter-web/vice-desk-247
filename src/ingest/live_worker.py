@@ -41,79 +41,118 @@ class LiveIngestWorker:
         self.ffmpeg_bin = ffmpeg_bin or settings.ffmpeg_binary
         self.ytdlp_bin = shutil.which("yt-dlp") or r"C:\Users\rudra\AppData\Local\Programs\Python\Python313\Scripts\yt-dlp.EXE"
 
-    def fetch_stream_sample(self, url: str, output_dir: Path, section_range: str = "*00:15:00-00:15:35") -> Path:
+    def fetch_stream_sample(self, url: str, output_dir: Path, section_range: str = "*00:15:00-00:16:15") -> Path:
         """
-        Attempts to fetch a high-energy 1080p sample chunk from the live stream launch window
-        using yt-dlp. If the URL is already a local file or download fails,
-        gracefully falls back to high-res local gaming sample footage.
+        Fetches genuine 1080p stream footage for the exact section range.
+        Uses yt-dlp -g + FFmpeg direct stream slicing with HTTP User-Agent.
+        NEVER falls back to dummy sample footage for social publishing.
         """
         output_dir.mkdir(parents=True, exist_ok=True)
 
-        # 1. Check if input is already a local file
+        # 1. Local file passthrough
         local_path = Path(url)
         if local_path.is_file():
             return local_path
 
-        # 2. Check if yt-dlp is available and URL is remote
+        # 2. Parse section range
+        clean = section_range.lstrip("*").strip()
+        if "-" in clean:
+            parts = clean.split("-")
+            start_str = parts[0].strip()
+            end_str = parts[1].strip()
+
+            def _to_sec(t):
+                nums = list(map(int, t.split(":")))
+                if len(nums) == 3:
+                    return nums[0] * 3600 + nums[1] * 60 + nums[2]
+                elif len(nums) == 2:
+                    return nums[0] * 60 + nums[1]
+                return int(nums[0])
+
+            duration_sec = max(20, _to_sec(end_str) - _to_sec(start_str))
+        else:
+            start_str = clean
+            duration_sec = 65
+
         target_file = output_dir / f"stream_{uuid.uuid4().hex[:8]}.mp4"
+        ua = (
+            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
+            "(KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+        )
+
+        # 3. Primary Method: yt-dlp -g + FFmpeg direct slice with User-Agent
         if os.path.exists(self.ytdlp_bin) and (url.startswith("http://") or url.startswith("https://")):
             try:
-                logger.info(f"Downloading 1080p stream sample via yt-dlp [{section_range}] from: {url}")
-                cmd = [
+                logger.info(f"Extracting live stream URLs for {url} [{start_str} +{duration_sec}s]...")
+                cmd_g = [
                     self.ytdlp_bin,
-                    "-f", "best[ext=mp4]/bestvideo[ext=mp4]+bestaudio[ext=m4a]/best",
+                    "-g",
+                    "-f", "299+140/298+140/bestvideo[ext=mp4]+bestaudio[ext=m4a]/best",
+                    "--user-agent", ua,
+                    "--no-warnings",
+                    url,
+                ]
+                res_g = subprocess.run(cmd_g, capture_output=True, text=True, timeout=25)
+                if res_g.returncode == 0 and res_g.stdout.strip():
+                    stream_urls = res_g.stdout.strip().splitlines()
+                    if len(stream_urls) >= 2:
+                        v_url, a_url = stream_urls[0], stream_urls[1]
+                        cmd_ff = [
+                            self.ffmpeg_bin, "-y",
+                            "-user_agent", ua,
+                            "-ss", start_str,
+                            "-i", v_url,
+                            "-user_agent", ua,
+                            "-ss", start_str,
+                            "-i", a_url,
+                            "-t", str(duration_sec),
+                            "-c:v", "copy",
+                            "-c:a", "aac",
+                            str(target_file),
+                        ]
+                    else:
+                        v_url = stream_urls[0]
+                        cmd_ff = [
+                            self.ffmpeg_bin, "-y",
+                            "-user_agent", ua,
+                            "-ss", start_str,
+                            "-i", v_url,
+                            "-t", str(duration_sec),
+                            "-c", "copy",
+                            str(target_file),
+                        ]
+
+                    res_ff = subprocess.run(cmd_ff, capture_output=True, text=True, timeout=60)
+                    if res_ff.returncode == 0 and target_file.exists() and target_file.stat().st_size > 500_000:
+                        logger.info(f"Genuine stream footage captured: {target_file} ({target_file.stat().st_size / (1024*1024):.2f} MB)")
+                        return target_file
+                    else:
+                        logger.warning(f"FFmpeg direct slice failed (code {res_ff.returncode}): {res_ff.stderr[-200:] if res_ff.stderr else ''}")
+            except Exception as eg:
+                logger.warning(f"Direct stream slice error: {eg}")
+
+            # 4. Secondary Method: Native yt-dlp slice without external ffmpeg downloader
+            try:
+                logger.info(f"Retrying with native yt-dlp slice [{section_range}]...")
+                cmd_native = [
+                    self.ytdlp_bin,
+                    "-f", "bv*[ext=mp4]+ba[ext=m4a]/b[ext=mp4]/best",
                     "--download-sections", section_range,
-                    "--downloader", "ffmpeg",
-                    "--downloader-args", "ffmpeg_i:-reconnect 1 -reconnect_streamed 1 -reconnect_delay_max 5",
+                    "--user-agent", ua,
                     "--force-overwrites",
                     "--no-playlist",
                     "-o", str(target_file),
                     url,
                 ]
-                res = subprocess.run(cmd, capture_output=True, text=True, timeout=120)
-                if res.returncode == 0 and target_file.exists() and target_file.stat().st_size > 1000:
+                res_nat = subprocess.run(cmd_native, capture_output=True, text=True, timeout=60)
+                if res_nat.returncode == 0 and target_file.exists() and target_file.stat().st_size > 500_000:
+                    logger.info(f"Native yt-dlp captured genuine footage: {target_file}")
                     return target_file
-                else:
-                    logger.warning(f"yt-dlp download returned {res.returncode}. Falling back to sample footage.")
-            except Exception as e:
-                logger.warning(f"yt-dlp stream fetch failed: {e}. Falling back to sample footage.")
+            except Exception as en:
+                logger.warning(f"Native yt-dlp slice error: {en}")
 
-        # 3. Resilient fallback: use local high-quality gaming footage
-        sample_candidates = [
-            Path(r"c:\Users\rudra\Documents\Earn\website S\gaming-content-intelligence\data\media\live_bgmi_sample.mp4"),
-            Path(__file__).parent.parent.parent / "data" / "media" / "live_bgmi_sample.mp4",
-            Path(__file__).parent.parent.parent / "data" / "rendered" / "render-0ddc3702.mp4",
-        ]
-        for cand in sample_candidates:
-            if cand.exists() and cand.stat().st_size > 0:
-                fallback_target = output_dir / f"fallback_{uuid.uuid4().hex[:8]}.mp4"
-                shutil.copyfile(cand, fallback_target)
-                return fallback_target
-
-        # 4. Resilient synthetic generation via FFmpeg (35s 540x960 30fps)
-        synth_file = output_dir / f"synth_{uuid.uuid4().hex[:8]}.mp4"
-        cmd = [
-            self.ffmpeg_bin, "-y",
-            "-f", "lavfi", "-i", "testsrc=size=540x960:rate=30",
-            "-f", "lavfi", "-i", "sine=frequency=1000:duration=35",
-            "-c:v", "libx264", "-preset", "ultrafast", "-tune", "zerolatency",
-            "-threads", "2",
-            "-c:a", "aac", "-pix_fmt", "yuv420p",
-            "-t", "35",
-            str(synth_file),
-        ]
-        try:
-            logger.info(f"Generating synthetic fallback clip with {self.ffmpeg_bin}...")
-            res = subprocess.run(cmd, capture_output=True, text=True, timeout=30)
-            if res.returncode == 0 and synth_file.exists() and synth_file.stat().st_size > 1000:
-                logger.info(f"Synthetic sample successfully generated: {synth_file}")
-                return synth_file
-            else:
-                logger.error(f"FFmpeg synthetic fallback failed (code {res.returncode}): {res.stderr[:200]}")
-        except Exception as e:
-            logger.error(f"Synthetic fallback generation failed: {e}")
-
-        raise RuntimeError("No media available for processing: neither yt-dlp nor local sample exists.")
+        # CRITICAL HARD QUALITY GATE: Never return dummy sample footage for social media publishing
+        raise RuntimeError(f"Unable to download genuine live stream footage from {url}. Cycle aborted to prevent duplicate/dummy posting.")
 
     def process_url_job(
         self,
@@ -122,7 +161,7 @@ class LiveIngestWorker:
         game: str = "GTA 6",
         layout_mode: str = "blur_fill",
         publish_to_youtube: bool = False,
-        section_range: str = "*00:15:00-00:15:35",
+        section_range: str = "*00:15:00-00:16:15",
     ) -> Dict[str, Any]:
         """
         Executes complete end-to-end processing pipeline for a stream:
@@ -134,7 +173,16 @@ class LiveIngestWorker:
         logger.info(f"Starting Live Ingest Job [Trace: {trace_id}] for {creator_name} ({url})")
 
         ingest_dir = settings.media_dir / "ingest"
-        source_media_path = self.fetch_stream_sample(url, ingest_dir, section_range=section_range)
+        try:
+            source_media_path = self.fetch_stream_sample(url, ingest_dir, section_range=section_range)
+        except Exception as dl_err:
+            logger.error(f"[INGEST] Genuine footage download failed for {creator_name}: {dl_err}")
+            return {
+                "status": "FAILED",
+                "error": str(dl_err),
+                "output_path": None,
+                "render_id": None,
+            }
 
         # 1. Probing & Checksum
         meta = self.probe.probe(str(source_media_path))
