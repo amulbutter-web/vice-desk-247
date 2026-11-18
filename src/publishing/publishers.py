@@ -6,6 +6,8 @@ Falls back safely to deterministic dry-run mode when credentials are not configu
 import uuid
 import time
 import json
+import os
+from pathlib import Path
 import urllib.request
 import urllib.error
 import urllib.parse
