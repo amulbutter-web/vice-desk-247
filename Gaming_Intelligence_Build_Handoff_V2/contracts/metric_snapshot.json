@@ -1,0 +1,75 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "additionalProperties": false,
+  "title": "metric_snapshot",
+  "properties": {
+    "schema_version": {
+      "type": "string",
+      "const": "1.0"
+    },
+    "id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "trace_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "publish_intent_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "metric_name": {
+      "type": "string",
+      "minLength": 1
+    },
+    "availability": {
+      "enum": [
+        "reported",
+        "unavailable",
+        "denied",
+        "delayed"
+      ]
+    },
+    "metric_value": {
+      "type": [
+        "number",
+        "null"
+      ]
+    },
+    "unit": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "platform_definition": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "window": {
+      "type": "string",
+      "minLength": 1
+    },
+    "captured_at_utc": {
+      "type": "string",
+      "format": "date-time"
+    }
+  },
+  "required": [
+    "schema_version",
+    "id",
+    "trace_id",
+    "publish_intent_id",
+    "metric_name",
+    "availability",
+    "metric_value",
+    "unit",
+    "platform_definition",
+    "window",
+    "captured_at_utc"
+  ]
+}

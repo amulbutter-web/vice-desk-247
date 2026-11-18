@@ -1,0 +1,87 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "additionalProperties": false,
+  "title": "publish_intent",
+  "properties": {
+    "schema_version": {
+      "type": "string",
+      "const": "1.0"
+    },
+    "id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "trace_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "render_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "destination": {
+      "enum": [
+        "instagram",
+        "youtube"
+      ]
+    },
+    "account_ref": {
+      "type": "string",
+      "minLength": 1
+    },
+    "source_rights_ref": {
+      "type": "string",
+      "minLength": 1
+    },
+    "approval_ref": {
+      "type": "string",
+      "minLength": 1
+    },
+    "content_sha256": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "state": {
+      "enum": [
+        "draft",
+        "approved",
+        "queued",
+        "submitting",
+        "remote_processing",
+        "unknown",
+        "confirmed",
+        "failed",
+        "blocked"
+      ]
+    },
+    "remote_media_id": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "attempts": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "created_at_utc": {
+      "type": "string",
+      "format": "date-time"
+    }
+  },
+  "required": [
+    "schema_version",
+    "id",
+    "trace_id",
+    "render_id",
+    "destination",
+    "account_ref",
+    "source_rights_ref",
+    "approval_ref",
+    "content_sha256",
+    "state",
+    "attempts",
+    "created_at_utc"
+  ]
+}

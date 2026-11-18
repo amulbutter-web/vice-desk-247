@@ -1,0 +1,250 @@
+{
+  "package": "Gaming Content Intelligence Build Handoff V2",
+  "prepared": "2026-11-18",
+  "status": "reviewed documents only, not implementation",
+  "file_count_excluding_manifest": 47,
+  "files": [
+    {
+      "path": "00_START_HERE.md",
+      "bytes": 7156,
+      "sha256": "105bb13f7753ed85455ba1fbb79b24a0e1d4971b4c97c9f88c41c0f7de704445"
+    },
+    {
+      "path": "01_SOURCE_ORDER_AND_REQUIREMENT_TRACE.md",
+      "bytes": 10454,
+      "sha256": "a6bc053e414aace8194e01a1c719b007e61a54ec89c55e29234efa9b044ff224"
+    },
+    {
+      "path": "02_PRD_DETAILED.md",
+      "bytes": 13616,
+      "sha256": "b6dc7ec6d2c542a9f0a25258714ff5a9a8eb74722816006b5754aebd305913b1"
+    },
+    {
+      "path": "03_ARCHITECTURE_AND_RUNTIME.md",
+      "bytes": 10156,
+      "sha256": "0a8cc036048385bf21c2c6baf8b48dcc0e26e6f85e50413ad0db862af639f78e"
+    },
+    {
+      "path": "04_MEDIA_EDITOR_AND_QUALITY.md",
+      "bytes": 10625,
+      "sha256": "cd1ff0f192d14b8a9a368994e15114ec5236595d359cd73c9ac96c241a7aa612"
+    },
+    {
+      "path": "05_FAILURE_MODE_AND_TEST_MATRIX.md",
+      "bytes": 6238,
+      "sha256": "8dda0169bd434ec0c942ec7210fbae7f29e2a9ab3dd727da3ccb24ce985fe52e"
+    },
+    {
+      "path": "06_PLATFORM_RIGHTS_AND_PUBLISHING.md",
+      "bytes": 8512,
+      "sha256": "ead7347f2212346909c45d766ff88291ecada1312ad60c2fe91080c3d0f7e177"
+    },
+    {
+      "path": "07_TOOL_MODEL_BAKEOFF.md",
+      "bytes": 10119,
+      "sha256": "9984ba93272b218b1a60b01e6ccef4da2f398fb12ba115fb519054e5be372906"
+    },
+    {
+      "path": "08_ORACLE_CAPACITY_SRE.md",
+      "bytes": 8215,
+      "sha256": "7effe80542d4dfd4b343ec16428b3bf9fb51930b381c2f853fcb6e35d33b0403"
+    },
+    {
+      "path": "09_ANALYTICS_AND_EXPERIMENTS.md",
+      "bytes": 6444,
+      "sha256": "feabcb8bc7c2d02a8b75ad3b2cdfdf3437188a5b622cd6b416b02ec5850788e5"
+    },
+    {
+      "path": "10_DATA_CONTRACTS.md",
+      "bytes": 5478,
+      "sha256": "8393116217ff7fc9cb8bdfdfadb1abcb5c1ba18aca54140130e574dd8e812d73"
+    },
+    {
+      "path": "11_BUILD_SEQUENCE_AND_ACCEPTANCE.md",
+      "bytes": 8036,
+      "sha256": "5a6bcc09c3f3eebb27a75a3e876162b94fe139e4c82361122317474266a80a9f"
+    },
+    {
+      "path": "12_MASTER_CODING_PROMPT.md",
+      "bytes": 7890,
+      "sha256": "0bdb3ea8235c377d39590b65377efc78a285662cb290b05a1be74528f5c23897"
+    },
+    {
+      "path": "13_PHASE_PROMPTS.md",
+      "bytes": 8087,
+      "sha256": "5b8afc2801ca802968964eb69fc7f7ee3c1f53fca9cffaca5dcc2462f6da7bc0"
+    },
+    {
+      "path": "14_REEL_RESEARCH_PROTOCOL.md",
+      "bytes": 6790,
+      "sha256": "ef3b2dde529401c8c5adb634225e43d4b466897ca2d9514e36b848ba608ff567"
+    },
+    {
+      "path": "15_RESOURCE_EVIDENCE_INDEX.csv",
+      "bytes": 19808,
+      "sha256": "b5e576091cd631b0bc25d0aabf800b6088da7de52ef519e56815a7db203848ae"
+    },
+    {
+      "path": "16_EVIDENCE_AND_OPEN_ITEMS.md",
+      "bytes": 8057,
+      "sha256": "43b5ef5dd7bd0dc404ff24633781c0bf87f8ba06b5208783f68461b8a4d520c0"
+    },
+    {
+      "path": "17_V1_QUALITY_AUDIT.md",
+      "bytes": 4982,
+      "sha256": "c01324247c1352fad3524d47fb9ba6eba30c848409380c8e3842166fe1333b23"
+    },
+    {
+      "path": "18_DEVELOPER_DELIVERY_CHECKLIST.md",
+      "bytes": 3554,
+      "sha256": "f6efd55f85a2d1d03387de884cb51283d308594bdc449afc4a1040208c48af30"
+    },
+    {
+      "path": "AGENTS.md",
+      "bytes": 1520,
+      "sha256": "b98882f767e4f788be3bf9f98e7ef23f250d9c8eb619e20ef1bbee447cfc1f04"
+    },
+    {
+      "path": "COMPLETE_SINGLE_FILE_HANDOFF.md",
+      "bytes": 146417,
+      "sha256": "e1282706e414c95a03eebe6aef47ed9cd864603c0d9c40cf62e71cf422326488"
+    },
+    {
+      "path": "GIVE_THIS_TO_CODING_AGENT.txt",
+      "bytes": 1661,
+      "sha256": "e005373297c2a8581099cc4a904992fb808010f3ca229df4abcb065fe350f130"
+    },
+    {
+      "path": "contracts/edit_plan.json",
+      "bytes": 2955,
+      "sha256": "5e4615e45ef3c3749ac086c796a193050cc9c71b183fab5bbc111039e74f9558"
+    },
+    {
+      "path": "contracts/error.json",
+      "bytes": 1056,
+      "sha256": "71978934e6e8a7d0a1a51fdb95f5293387b0edc0d84acf0e8224d862150779eb"
+    },
+    {
+      "path": "contracts/event_candidate.json",
+      "bytes": 1753,
+      "sha256": "0c8b302bd7665eff64c8dcea68f21b55c2c7433d7bc0244cd8b0801b31289577"
+    },
+    {
+      "path": "contracts/metric_snapshot.json",
+      "bytes": 1300,
+      "sha256": "626be6c357da999d908844ba33c807fcb1ad8e5d7805a7ea2d830a62357a79d1"
+    },
+    {
+      "path": "contracts/publish_intent.json",
+      "bytes": 1565,
+      "sha256": "486158a671959a658377e06db375aa3170fcfe3accd446fe069d483617bfeb34"
+    },
+    {
+      "path": "contracts/qc_result.json",
+      "bytes": 2873,
+      "sha256": "cf38c818643e38ec327f92dda44fbc2e8636add516584bf9027b2c5ff0d4f718"
+    },
+    {
+      "path": "legacy/00_READ_ME_FIRST.md",
+      "bytes": 6448,
+      "sha256": "e26526a0be24d7312a0d1e7db8fcce0ef8844c470703c98ae19dc6640eb5a4da"
+    },
+    {
+      "path": "legacy/01_PRD.md",
+      "bytes": 9098,
+      "sha256": "360359c97c798bf4f7846037497c39fd3ce0ff143b03d6d8daf46b66737e83c3"
+    },
+    {
+      "path": "legacy/02_ARCHITECTURE.md",
+      "bytes": 8170,
+      "sha256": "54b3e0bb2ce76596e675919a51e3c287c2ebe1c23e0ceb8027e24d8256564eab"
+    },
+    {
+      "path": "legacy/03_RESOURCE_MATRIX.md",
+      "bytes": 9782,
+      "sha256": "36fe5814b3bdf59e40fe67016db27dc0ede44915174d76c456676c78921a083f"
+    },
+    {
+      "path": "legacy/04_MODEL_AND_TOOL_BAKEOFF.md",
+      "bytes": 5068,
+      "sha256": "fd0a274c446e762b18d137c4b09f3de9c85b180f9b1c490616000adba05272d4"
+    },
+    {
+      "path": "legacy/05_QA_AND_RISK_REGISTER.md",
+      "bytes": 10370,
+      "sha256": "543ca528d8557b75e7bfbedae01e3fb1ad89aabeaa1174dc8d37fb38d65c7260"
+    },
+    {
+      "path": "legacy/06_IMPLEMENTATION_ROADMAP.md",
+      "bytes": 6808,
+      "sha256": "b0ba984a0d9eb009c14dedcf1a7873c3cc58b4dc644792c76bcabf23d8aaec55"
+    },
+    {
+      "path": "legacy/07_CODING_AGENT_PROMPTS.md",
+      "bytes": 9937,
+      "sha256": "c27b7d5f9f9e097e14a131e418e80a407ee1a45682c88eadaeab63cffdaeb78a"
+    },
+    {
+      "path": "legacy/08_RESEARCH_STATUS_AND_OPEN_EVIDENCE.md",
+      "bytes": 4622,
+      "sha256": "657df9ef25983462d47df89f2b591e35070823884335aa41810220adb00b912c"
+    },
+    {
+      "path": "legacy/MASTER_HANDOFF.md",
+      "bytes": 70359,
+      "sha256": "32ba658b1be723daf4a6eb7582ba85b939ee261a800a8daa7100ad0c97a6d220"
+    },
+    {
+      "path": "legacy/resources_v1.csv",
+      "bytes": 8263,
+      "sha256": "05d161744c33f9ddbe402c62df9669125949fa3bdba6c48cc10b43d84b57c028"
+    },
+    {
+      "path": "reference/build_resource_and_tests.py",
+      "bytes": 18936,
+      "sha256": "829c964e695d16261a97d6e0b9d1d4026c49b8c5bea22f9d980c7965077dd241"
+    },
+    {
+      "path": "reference/decision_register.csv",
+      "bytes": 1665,
+      "sha256": "9e221537b331c4c887d7e32178e19b4a03a5c273412016b216e7ddb38a1f7fe3"
+    },
+    {
+      "path": "reference/source_traceability.csv",
+      "bytes": 2490,
+      "sha256": "6555d865f1254de1fac9678d0bd60072d2cf8a7dfc58c71d0ab4caa5dd8a559a"
+    },
+    {
+      "path": "reference/traceability.py",
+      "bytes": 5040,
+      "sha256": "d2cd5c14e0394e8be3b1fb5a25c94a47711eb47c0cf33bcd47961e82b6d03841"
+    },
+    {
+      "path": "schema.sql",
+      "bytes": 3921,
+      "sha256": "8444d2d48eeae404a2af88f1da887eb98853ae4046bf2c3638ef2e23c11f7203"
+    },
+    {
+      "path": "tests/failure_cases.csv",
+      "bytes": 14015,
+      "sha256": "c73ded24f72fd45b6f2d39d74750f953ee26b37aa5ae64c734b7bd3f0160a1d9"
+    },
+    {
+      "path": "tests/static_qa_report.json",
+      "bytes": 2831,
+      "sha256": "6de905915ae3401c41f676f9e62669b639f4f3241b1258a9d5f44a990755c4bd"
+    },
+    {
+      "path": "tests/verify_handoff.py",
+      "bytes": 4172,
+      "sha256": "d9dd01aee7892d98c1ed92d20efa58b81c22784f05e6071549a4b95d006f5a24"
+    }
+  ],
+  "known_incomplete": [
+    "raw Instagram video/audio media",
+    "17 vs 49 original reference identities",
+    "real account integration",
+    "real 15-stream load benchmark",
+    "actual app build"
+  ]
+}

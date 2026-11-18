@@ -1,0 +1,79 @@
+test_id,stage,scenario,stimulus,expected_behavior,severity,evidence_needed,status
+FT-001,sources,unlicensed stream,Source is public but not authorized,BLOCK before ingest; log creator permission needed,S0,Test log + source fixture hash + observed output,NOT_RUN_TEST_DESIGN
+FT-002,sources,revoked license,Consent revoked after clip preview,STOP pending publish; quarantine release state,S0,Test log + source fixture hash + observed output,NOT_RUN_TEST_DESIGN
+FT-003,sources,private group Reel,Instagram media requires private DM access,Do not bypass or claim extraction,S0,Test log + source fixture hash + observed output,NOT_RUN_TEST_DESIGN
+FT-004,sources,source identity mismatch,Two similar channels/reused usernames,Reject until platform ID verified,S1,Test log + source fixture hash + observed output,NOT_RUN_TEST_DESIGN
+FT-005,sources,trending unavailable,Platform API returns no public trending field,Expose method/unavailable not fake top rank,S1,Test log + source fixture hash + observed output,NOT_RUN_TEST_DESIGN
+FT-006,sources,source reconnect,Source restarts with PTS discontinuity,"New epoch, no corrupted stitched clip",S1,Test log + source fixture hash + observed output,NOT_RUN_TEST_DESIGN
+FT-007,sources,clock drift,Source time vs UTC drift > threshold,Record drift and align via source clock,S1,Test log + source fixture hash + observed output,NOT_RUN_TEST_DESIGN
+FT-008,sources,audio/video drift,Stream audio leads video 900 ms,"Block or repair sync, rerun QC",S1,Test log + source fixture hash + observed output,NOT_RUN_TEST_DESIGN
+FT-009,sources,last-buffer edge,Highlight starts before ring buffer,"Flag missing lead-up, do not pretend complete",S1,Test log + source fixture hash + observed output,NOT_RUN_TEST_DESIGN
+FT-010,sources,wrong source interleave,Two concurrent clips same timestamp,Do not merge across source IDs,S0,Test log + source fixture hash + observed output,NOT_RUN_TEST_DESIGN
+FT-011,detection,silent action,Quiet but visually important clutch/stunt,Detect candidate with visual evidence,S1,Test log + source fixture hash + observed output,NOT_RUN_TEST_DESIGN
+FT-012,detection,loud loading,Streamer screams over loading screen,Reject false-positive without gameplay,S1,Test log + source fixture hash + observed output,NOT_RUN_TEST_DESIGN
+FT-013,detection,chat spam,One user floods chat metrics,Cap outlier effect; avoid fake highlight,S1,Test log + source fixture hash + observed output,NOT_RUN_TEST_DESIGN
+FT-014,detection,ad interruption,"Ad changes scenes, speech loud",Exclude or label ad from gameplay candidate,S1,Test log + source fixture hash + observed output,NOT_RUN_TEST_DESIGN
+FT-015,detection,slow tension,Meaningful buildup then payoff over >60 seconds,Capture context not only last 30s,S1,Test log + source fixture hash + observed output,NOT_RUN_TEST_DESIGN
+FT-016,detection,late detection,Trigger comes after peak,Use pre-roll and recovered onset,S1,Test log + source fixture hash + observed output,NOT_RUN_TEST_DESIGN
+FT-017,detection,duplicate event,Two detectors flag overlapping segment,Merge within same source when identical,S2,Test log + source fixture hash + observed output,NOT_RUN_TEST_DESIGN
+FT-018,detection,different streamer same time,Two sources peak at same UTC time,Independent candidate processing,S1,Test log + source fixture hash + observed output,NOT_RUN_TEST_DESIGN
+FT-019,detection,screen UI popup,HUD change without significant gameplay,Do not overreact to trivial UI,S2,Test log + source fixture hash + observed output,NOT_RUN_TEST_DESIGN
+FT-020,detection,multilingual audio,Hindi-English game voice chat,Keep correct named entities/no fabricated ASR,S1,Test log + source fixture hash + observed output,NOT_RUN_TEST_DESIGN
+FT-021,editing,sentence cut,Start mid-critical sentence,Snap only if preserves story semantics,S1,Test log + source fixture hash + observed output,NOT_RUN_TEST_DESIGN
+FT-022,editing,missing consequence,Clip cuts before landing/reaction,Include resolution or reject incomplete,S1,Test log + source fixture hash + observed output,NOT_RUN_TEST_DESIGN
+FT-023,editing,fake chronology,Edit combines nonadjacent events misleadingly,Flag or explicitly label montage,S0,Test log + source fixture hash + observed output,NOT_RUN_TEST_DESIGN
+FT-024,editing,out-of-range time,LLM proposes 200s for 180s media,Reject invalid plan before renderer,S1,Test log + source fixture hash + observed output,NOT_RUN_TEST_DESIGN
+FT-025,editing,overlapping operations,Two incompatible crop intervals,Typed merge conflict prevents render,S2,Test log + source fixture hash + observed output,NOT_RUN_TEST_DESIGN
+FT-026,editing,facecam over HUD,Facecam overlay covers score/minimap,Reposition or reject,S1,Test log + source fixture hash + observed output,NOT_RUN_TEST_DESIGN
+FT-027,editing,tracking loss,Fast moving car leaves cropped frame,Correct ROI/review key interval,S1,Test log + source fixture hash + observed output,NOT_RUN_TEST_DESIGN
+FT-028,editing,subtitle overflow,Multi-line caption clipped by UI controls,Safe area gate fails,S1,Test log + source fixture hash + observed output,NOT_RUN_TEST_DESIGN
+FT-029,editing,ASR hallucinated quote,Video has no quote model invents dialogue,No invented subtitle; use verified audio,S0,Test log + source fixture hash + observed output,NOT_RUN_TEST_DESIGN
+FT-030,editing,slowmo distortion,Slow motion distorts causal action or speech,Reject/evaluate alternate,S1,Test log + source fixture hash + observed output,NOT_RUN_TEST_DESIGN
+FT-031,editing,unlicensed audio,Overlay music has no permission,Block asset and publication,S0,Test log + source fixture hash + observed output,NOT_RUN_TEST_DESIGN
+FT-032,editing,frozen render,Output contains repeated frozen frames,Hard QC fails,S1,Test log + source fixture hash + observed output,NOT_RUN_TEST_DESIGN
+FT-033,quality,black frame,Unintended black frame period after effect,Hard QC fails,S1,Test log + source fixture hash + observed output,NOT_RUN_TEST_DESIGN
+FT-034,quality,AV silence,Accidental silent output where game audio expected,Hard QC fails,S1,Test log + source fixture hash + observed output,NOT_RUN_TEST_DESIGN
+FT-035,quality,codec mismatch,Instagram wrong audio codec,Generate platform-specific variant,S1,Test log + source fixture hash + observed output,NOT_RUN_TEST_DESIGN
+FT-036,quality,final-video unseen,Judge saw transcript only,Cannot mark multimodal QC complete,S1,Test log + source fixture hash + observed output,NOT_RUN_TEST_DESIGN
+FT-037,quality,judge-generator collusion,Same model rubber stamps own edit,Independent calibration/human check,S1,Test log + source fixture hash + observed output,NOT_RUN_TEST_DESIGN
+FT-038,quality,bad QC score threshold,7/10 chosen without calibration,Require actual human-label threshold test,S1,Test log + source fixture hash + observed output,NOT_RUN_TEST_DESIGN
+FT-039,quality,repair loop runaway,QC returns same repair endlessly,Retry capped and escalation,S1,Test log + source fixture hash + observed output,NOT_RUN_TEST_DESIGN
+FT-040,quality,repair regression,Second edit fixes crop but hides dialogue,Rerun full hard and editorial QC,S1,Test log + source fixture hash + observed output,NOT_RUN_TEST_DESIGN
+FT-041,quality,lost provenance,Output lacks source media hash,Reject public release,S0,Test log + source fixture hash + observed output,NOT_RUN_TEST_DESIGN
+FT-042,quality,model refuses media,Video model returns safety refusal,"Queue human review, no fake score",S1,Test log + source fixture hash + observed output,NOT_RUN_TEST_DESIGN
+FT-043,publishing,expired IG token,Instagram OAuth expired,Refresh scoped token or stop; no fake post,S1,Test log + source fixture hash + observed output,NOT_RUN_TEST_DESIGN
+FT-044,publishing,wrong login flow,Facebook Page requirement applied to Instagram Login,Select correct auth product,S1,Test log + source fixture hash + observed output,NOT_RUN_TEST_DESIGN
+FT-045,publishing,wrong account,Uploader posts to different creator account,Block mismatched account ID,S0,Test log + source fixture hash + observed output,NOT_RUN_TEST_DESIGN
+FT-046,publishing,IG quota reached,Meta quota endpoint reports none remaining,Delay/queue and notify,S1,Test log + source fixture hash + observed output,NOT_RUN_TEST_DESIGN
+FT-047,publishing,IG processing pending,Container created but no final media ID,"Keep REMOTE_PROCESSING, not published",S1,Test log + source fixture hash + observed output,NOT_RUN_TEST_DESIGN
+FT-048,publishing,YT processing failed,Insert returns id but status rejected,Do not mark published,S1,Test log + source fixture hash + observed output,NOT_RUN_TEST_DESIGN
+FT-049,publishing,POST timeout after remote success,Client never sees 200,Reconcile remote before retry; no duplicate,S0,Test log + source fixture hash + observed output,NOT_RUN_TEST_DESIGN
+FT-050,publishing,concurrent outbox,Two workers acquire same publish intent,Row-level lease/unique prevents duplicate,S0,Test log + source fixture hash + observed output,NOT_RUN_TEST_DESIGN
+FT-051,publishing,rights expired between QC and publish,License revocation after approval,Recheck rights before submit,S0,Test log + source fixture hash + observed output,NOT_RUN_TEST_DESIGN
+FT-052,publishing,bad public media URL,Meta cannot fetch signed expiring URL,Repair URL and process after status check,S1,Test log + source fixture hash + observed output,NOT_RUN_TEST_DESIGN
+FT-053,ops,disk full,Capture and renderer writes exhaust disk,"Backpressure new intake, preserve pending assets",S1,Test log + source fixture hash + observed output,NOT_RUN_TEST_DESIGN
+FT-054,ops,VM reboot,OCI server restarts at peak,State+media recovered and alerted,S1,Test log + source fixture hash + observed output,NOT_RUN_TEST_DESIGN
+FT-055,ops,API 429 burst,Inference provider rate limited,"Backoff, fail safe, maintain QC",S1,Test log + source fixture hash + observed output,NOT_RUN_TEST_DESIGN
+FT-056,ops,provider hallucination,Judge returns fake source fact,Ground verify with video/audio references,S1,Test log + source fixture hash + observed output,NOT_RUN_TEST_DESIGN
+FT-057,ops,SSRF URL,User supplies cloud metadata/private IP,Reject before fetch; revalidate redirects,S0,Test log + source fixture hash + observed output,NOT_RUN_TEST_DESIGN
+FT-058,ops,prompt injection in chat,Chat tells agent reveal secrets,Ignore as data; no shell or secret access,S0,Test log + source fixture hash + observed output,NOT_RUN_TEST_DESIGN
+FT-059,ops,model JSON malformed,LLM emits non-JSON or wrong keys,Schema reject/bounded retry,S2,Test log + source fixture hash + observed output,NOT_RUN_TEST_DESIGN
+FT-060,ops,stale shared memory,Worker refers to prior streamer event,Use durable trace and IDs,S1,Test log + source fixture hash + observed output,NOT_RUN_TEST_DESIGN
+FT-061,ops,background backlog,One active streamer floods candidates,Fair scheduling and bounded queues,S1,Test log + source fixture hash + observed output,NOT_RUN_TEST_DESIGN
+FT-062,ops,missing backup,Snapshot exists but restore not tested,Run restore drill; no readiness claim,S1,Test log + source fixture hash + observed output,NOT_RUN_TEST_DESIGN
+FT-063,ops,budget overrun,API costs escalate under retry loop,Enforce spend caps and alert,S1,Test log + source fixture hash + observed output,NOT_RUN_TEST_DESIGN
+FT-064,ops,OCI ARM incompatibility,Model wheel only supports x86/mac,Fallback compatible model or remote worker,S1,Test log + source fixture hash + observed output,NOT_RUN_TEST_DESIGN
+FT-065,analytics,retention unavailable,Platform exposes views but no per-second retention,Mark unavailable not estimated measured,S1,Test log + source fixture hash + observed output,NOT_RUN_TEST_DESIGN
+FT-066,analytics,missing metrics equals zero,403 is stored as zero views,Track denied/unavailable explicitly,S1,Test log + source fixture hash + observed output,NOT_RUN_TEST_DESIGN
+FT-067,analytics,freshness bias,1h post compared to 7day post,Age-match windows before conclusions,S2,Test log + source fixture hash + observed output,NOT_RUN_TEST_DESIGN
+FT-068,analytics,small sample hype,Three clips used to claim optimal length,No significant conclusion; caution,S1,Test log + source fixture hash + observed output,NOT_RUN_TEST_DESIGN
+FT-069,analytics,feedback loop drift,New policy causes silent-event misses,Canary+holdout catches and rollback,S1,Test log + source fixture hash + observed output,NOT_RUN_TEST_DESIGN
+FT-070,analytics,data leakage,Gold clips used in training and evaluation,Invalidate test and rerun holdout,S1,Test log + source fixture hash + observed output,NOT_RUN_TEST_DESIGN
+FT-071,analytics,global Simpson reversal,"Global views increase, one genre decreases",Stratify genre/creator,S2,Test log + source fixture hash + observed output,NOT_RUN_TEST_DESIGN
+FT-072,analytics,duplicate metric poll,Concurrent cron inserts duplicate snapshots,Unique snapshot key/transaction,S2,Test log + source fixture hash + observed output,NOT_RUN_TEST_DESIGN
+FT-073,research,caption mistaken for transcript,Reel caption used as full audio,Label caption-only,S1,Test log + source fixture hash + observed output,NOT_RUN_TEST_DESIGN
+FT-074,research,one-frame URL invented,Model guesses flashed GitHub link with no frame,Leave candidate/unverified,S1,Test log + source fixture hash + observed output,NOT_RUN_TEST_DESIGN
+FT-075,research,lookalike repo,Search finds similar repo different owner,Do not mark verified until exact identity,S1,Test log + source fixture hash + observed output,NOT_RUN_TEST_DESIGN
+FT-076,research,AGPL copied,SupoClip code copied without license review,Halt integration pending license decision,S0,Test log + source fixture hash + observed output,NOT_RUN_TEST_DESIGN
+FT-077,research,Ootto assumed working,MCP endpoint not actually tested,Defer/replace; no fake connector,S1,Test log + source fixture hash + observed output,NOT_RUN_TEST_DESIGN
+FT-078,research,17 vs 49 confusion,Citation totals treated as same inventory,Separate and reconcile with source,S1,Test log + source fixture hash + observed output,NOT_RUN_TEST_DESIGN

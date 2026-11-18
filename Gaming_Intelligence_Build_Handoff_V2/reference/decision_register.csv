@@ -1,0 +1,13 @@
+id,decision,safe_default,why_unresolved,requires_owner_action,build_phase
+D01,First demo input,Owned/licensed uploaded video,rights and account not provided,owner authorization to external source,phase0
+D02,15 streaming target,Preserve 15 actively analyzed sources,measured capacity required,only owner can reduce product goal,phase7
+D03,Initial framework,Choose after PeakCut/OpenShorts/SupoClip bakeoff,"licensing, runtime and render metrics",agent can select with proof,phase1
+D04,Publishing safety,Draft and manual approved private test,OAuth rights status unknown,owner authorizes real public publish,phase5
+D05,Reel hidden links,Unknown unless frame/audio observed,original export lacks media,user supplies lawful media or further evidence,phase0
+D06,Instagram login path,Inspect actual account and approved app product,two different Meta paths,owner supplies account/app access,phase5
+D07,LLM provider,"Task-level tested, configurable model",Grok/Groq/DeepSeek/Gemini variants,agent can compare with approved budget,phase1
+D08,OCI shape,Always Free if available and measured,hardware quotas availability unknown,owner authorizes tenancy and paid fallback,phase7
+D09,Auto quality threshold,Calibrate after human labels,no demonstrated threshold,owner approves guarded-public automation,phase8
+D10,Business model,Preserve creator service and owned channel options,copyright/revenue uncertain,owner selects primary strategy,phase6
+D11,Audio/music/assets,Use only licensed/owned,licenses unspecified,owner/licensing confirmation,phase2
+D12,Review fixes,Default max 2 automatic repairs,must avoid infinite loops,agent may tune with test proof,phase4

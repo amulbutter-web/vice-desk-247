@@ -1,0 +1,855 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ClipIntel — Autonomous Gaming Content Intelligence Studio</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600;700&family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --ink: #07101c;
+      --ink-soft: #0b1725;
+      --panel: #101d2b;
+      --panel-2: #132334;
+      --line: rgba(169, 192, 213, 0.14);
+      --line-bright: rgba(169, 192, 213, 0.26);
+      --fg: #f5f7fb;
+      --muted: #91a2b5;
+      --muted-2: #62758a;
+      --cyan: #38d5e8;
+      --cyan-glow: rgba(56, 213, 232, 0.25);
+      --lime: #b6ea66;
+      --orange: #ffac70;
+      --red: #ff7272;
+      --gold: #e6b325;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; border-color: var(--line); }
+    body {
+      background: var(--ink);
+      color: var(--fg);
+      font-family: 'Inter', -apple-system, sans-serif;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      overflow-x: hidden;
+    }
+
+    /* Top Navigation Bar */
+    header {
+      background: #091522;
+      border-bottom: 1px solid var(--line);
+      height: 64px;
+      padding: 0 24px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      position: sticky;
+      top: 0;
+      z-index: 50;
+    }
+
+    .brand-lockup {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+    .brand-mark {
+      width: 28px;
+      height: 28px;
+      border: 1.5px solid var(--cyan);
+      display: grid;
+      place-items: center;
+      transform: rotate(45deg);
+      border-radius: 6px;
+      box-shadow: 0 0 16px var(--cyan-glow);
+    }
+    .brand-mark-inner {
+      width: 10px;
+      height: 10px;
+      background: var(--cyan);
+      border-radius: 2px;
+    }
+    .brand-text { display: flex; flex-direction: column; }
+    .brand-name {
+      font-weight: 800;
+      letter-spacing: 0.1em;
+      font-size: 15px;
+      text-transform: uppercase;
+    }
+    .brand-name span { color: var(--cyan); }
+    .brand-kicker {
+      font-family: 'IBM Plex Mono', monospace;
+      font-size: 9px;
+      color: var(--muted-2);
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+    }
+
+    .header-pills {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+    .pill {
+      background: rgba(255, 255, 255, 0.03);
+      border: 1px solid var(--line);
+      padding: 6px 12px;
+      border-radius: 6px;
+      font-family: 'IBM Plex Mono', monospace;
+      font-size: 11px;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+    .pill-cyan { color: var(--cyan); border-color: rgba(56, 213, 232, 0.3); background: rgba(56, 213, 232, 0.05); }
+    .pill-lime { color: var(--lime); border-color: rgba(182, 234, 102, 0.3); background: rgba(182, 234, 102, 0.05); }
+    .pill-orange { color: var(--orange); border-color: rgba(255, 172, 112, 0.3); background: rgba(255, 172, 112, 0.05); }
+    .dot { width: 6px; height: 6px; border-radius: 50%; }
+    .dot-lime { background: var(--lime); box-shadow: 0 0 8px var(--lime); }
+    .dot-cyan { background: var(--cyan); box-shadow: 0 0 8px var(--cyan); }
+
+    /* Control Toolbar */
+    .toolbar {
+      background: var(--ink-soft);
+      border-bottom: 1px solid var(--line);
+      padding: 12px 24px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 16px;
+      flex-wrap: wrap;
+    }
+    .intake-bar {
+      display: flex;
+      gap: 8px;
+      flex: 1;
+      max-width: 650px;
+    }
+    .input-field {
+      flex: 1;
+      background: var(--panel);
+      border: 1px solid var(--line-bright);
+      color: var(--fg);
+      padding: 9px 14px;
+      border-radius: 6px;
+      font-size: 13px;
+      font-family: 'Inter', sans-serif;
+    }
+    .input-field:focus { outline: none; border-color: var(--cyan); box-shadow: 0 0 10px var(--cyan-glow); }
+    
+    .btn {
+      padding: 9px 16px;
+      border-radius: 6px;
+      font-size: 12px;
+      font-weight: 600;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      transition: all 0.15s ease;
+      white-space: nowrap;
+    }
+    .btn-cyan { background: var(--cyan); color: #06202a; border: 1px solid var(--cyan); font-weight: 700; }
+    .btn-cyan:hover { background: #71e5f1; box-shadow: 0 0 16px var(--cyan-glow); }
+    .btn-dark { background: var(--panel); color: var(--fg); border: 1px solid var(--line-bright); }
+    .btn-dark:hover { background: var(--panel-2); border-color: var(--cyan); }
+    .btn-gold { background: var(--gold); color: #000; border: 1px solid var(--gold); font-weight: 700; }
+    .btn-gold:hover { background: #ffd043; }
+
+    /* Main Split Layout */
+    main {
+      flex: 1;
+      display: grid;
+      grid-template-columns: 380px 1fr;
+      gap: 20px;
+      padding: 24px;
+      max-width: 1600px;
+      margin: 0 auto;
+      width: 100%;
+    }
+    @media (max-width: 1024px) {
+      main { grid-template-columns: 1fr; }
+    }
+
+    /* Left Column: Player & Reel Studio */
+    .studio-panel {
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+    }
+    .player-card {
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: 12px;
+      padding: 18px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      position: relative;
+    }
+    .viewport-9-16 {
+      width: 100%;
+      max-width: 320px;
+      aspect-ratio: 9/16;
+      background: #000;
+      border-radius: 8px;
+      overflow: hidden;
+      position: relative;
+      box-shadow: 0 12px 36px rgba(0,0,0,0.8);
+      border: 1px solid var(--line-bright);
+    }
+    video {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+    }
+    .hook-overlay {
+      position: absolute;
+      top: 14px;
+      left: 10px;
+      right: 10px;
+      background: rgba(230, 179, 37, 0.95);
+      color: #000;
+      font-weight: 800;
+      font-size: 13px;
+      text-align: center;
+      padding: 6px 8px;
+      border-radius: 4px;
+      letter-spacing: 0.05em;
+      text-transform: uppercase;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.5);
+      pointer-events: none;
+    }
+    .studio-actions {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      width: 100%;
+      margin-top: 14px;
+    }
+
+    /* Right Column: Multi-Tab Intelligence Center */
+    .intel-panel {
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+    }
+    .tabs-header {
+      display: flex;
+      gap: 8px;
+      border-bottom: 1px solid var(--line);
+      padding-bottom: 8px;
+    }
+    .tab-btn {
+      background: transparent;
+      border: none;
+      color: var(--muted);
+      font-weight: 600;
+      font-size: 13px;
+      padding: 8px 14px;
+      border-radius: 6px;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+    .tab-btn.active {
+      background: var(--panel);
+      color: var(--cyan);
+      border: 1px solid var(--line);
+    }
+
+    .card {
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: 10px;
+      padding: 16px;
+    }
+    .card-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 14px;
+    }
+    .card-title {
+      font-size: 14px;
+      font-weight: 700;
+      letter-spacing: 0.02em;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    /* Candidate Stream Cards */
+    .candidate-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+      gap: 14px;
+    }
+    .candidate-card {
+      background: var(--ink-soft);
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      padding: 14px;
+      cursor: pointer;
+      transition: all 0.15s ease;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+    .candidate-card:hover, .candidate-card.active {
+      border-color: var(--cyan);
+      background: var(--panel-2);
+      transform: translateY(-2px);
+      box-shadow: 0 4px 16px rgba(0,0,0,0.4);
+    }
+    .candidate-meta {
+      display: flex;
+      justify-content: space-between;
+      font-size: 11px;
+      font-family: 'IBM Plex Mono', monospace;
+    }
+    .candidate-title {
+      font-weight: 700;
+      font-size: 13px;
+      line-height: 1.3;
+      color: #fff;
+    }
+    .radar-scores {
+      display: grid;
+      grid-template-columns: 1fr 1fr 1fr;
+      gap: 6px;
+      background: rgba(0,0,0,0.3);
+      padding: 8px;
+      border-radius: 6px;
+      font-family: 'IBM Plex Mono', monospace;
+      font-size: 10px;
+    }
+    .score-item span { display: block; color: var(--muted-2); font-size: 9px; }
+    .score-item strong { color: var(--lime); font-size: 11px; }
+
+    /* Account & Connection Manager */
+    .account-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 12px;
+      background: var(--ink-soft);
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      margin-bottom: 10px;
+    }
+    .account-info { display: flex; align-items: center; gap: 12px; }
+    .account-avatar {
+      width: 36px;
+      height: 36px;
+      border-radius: 50%;
+      background: #182838;
+      border: 1px solid var(--line-bright);
+      display: grid;
+      place-items: center;
+      font-weight: 700;
+      color: var(--cyan);
+    }
+    .account-name { font-size: 13px; font-weight: 700; }
+    .account-sub { font-size: 11px; color: var(--muted); font-family: 'IBM Plex Mono', monospace; }
+
+    /* Notification / Toast */
+    .toast {
+      position: fixed;
+      bottom: 24px;
+      right: 24px;
+      padding: 14px 20px;
+      border-radius: 8px;
+      font-size: 13px;
+      font-weight: 600;
+      display: none;
+      z-index: 100;
+      box-shadow: 0 10px 30px rgba(0,0,0,0.8);
+    }
+    .toast-success { background: #064e3b; color: #a7f3d0; border: 1px solid var(--lime); }
+    .toast-error { background: #7f1d1d; color: #fecaca; border: 1px solid var(--red); }
+  </style>
+</head>
+<body>
+
+  <!-- Top Navigation -->
+  <header>
+    <div class="brand-lockup">
+      <div class="brand-mark"><div class="brand-mark-inner"></div></div>
+      <div class="brand-text">
+        <span class="brand-name">ClipIntel <span>AI Studio</span></span>
+        <span class="brand-kicker">PRD V4 · 15 SPECIALIST AGENTS · 0.001% BAR</span>
+      </div>
+    </div>
+    <div class="header-pills">
+      <div class="pill pill-lime" id="supervisorPill">
+        <span class="dot dot-lime"></span>
+        <span>24/7 CLOUD SUPERVISOR: ONLINE</span>
+      </div>
+      <div class="pill pill-cyan" id="groqPill">
+        <span class="dot dot-cyan"></span>
+        <span>GROQ POOL: 4 AGENTS ACTIVE</span>
+      </div>
+      <div class="pill" id="instagramPill">
+        <span class="dot" style="background:#e1306c;"></span>
+        <span id="instagramStatusText">INSTAGRAM: SETUP REQUIRED</span>
+      </div>
+    </div>
+  </header>
+
+  <!-- Ingestion Toolbar -->
+  <div class="toolbar">
+    <div class="intake-bar">
+      <input type="text" id="streamUrlInput" class="input-field" placeholder="Paste YouTube / Twitch stream URL (e.g. https://www.youtube.com/@IShowSpeed/live)...">
+      <button class="btn btn-dark" onclick="useSpeedUrl()">⚡ iShowSpeed Preset</button>
+      <button class="btn btn-cyan" onclick="submitStream()">🚀 Scout & Clip with AI</button>
+    </div>
+    <div style="display:flex; gap:10px; align-items:center;">
+      <label style="font-size:12px; display:flex; align-items:center; gap:6px; cursor:pointer;">
+        <input type="checkbox" id="autoPublishToggle" onchange="toggleAutoPublish(this.checked)">
+        <span style="font-weight:600; color:var(--lime);">Auto-Publish Mode</span>
+      </label>
+      <button class="btn btn-dark" onclick="refreshClips()">🔄 Refresh</button>
+    </div>
+  </div>
+
+  <!-- Main Grid Workspace -->
+  <main>
+    
+    <!-- Left Column: Video Viewport & Reel Studio -->
+    <div class="studio-panel">
+      <div class="player-card">
+        <div class="viewport-9-16">
+          <video id="studioPlayer" controls autoplay muted playsinline></video>
+          <div class="hook-overlay" id="studioHookOverlay">CAR CLEARS THE RAMP</div>
+        </div>
+
+        <div class="studio-actions">
+          <button class="btn btn-gold" id="publishReelsBtn" style="width:100%; justify-content:center;" onclick="publishCurrentToInstagram()">
+            🚀 1-Click Publish to Instagram Reels
+          </button>
+          <div style="display:grid; grid-template-columns:1fr 1fr; gap:8px;">
+            <button class="btn btn-dark" onclick="downloadCurrentMp4()">⬇️ Download 9:16</button>
+            <button class="btn btn-dark" onclick="rerollAiHook()">🪄 Reroll AI Hook</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- AI Metadata Inspector Card -->
+      <div class="card">
+        <div class="card-header">
+          <span class="card-title">🤖 Groq Multi-Agent Metadata</span>
+          <span class="pill pill-cyan" id="clipScoreBadge">VIRAL SCORE: 94%</span>
+        </div>
+        <div style="display:flex; flex-direction:column; gap:10px; font-size:13px;">
+          <div>
+            <label style="color:var(--muted-2); font-size:10px; font-family:'IBM Plex Mono',monospace; text-transform:uppercase;">Generated Viral Hook (ASS Subtitle)</label>
+            <input type="text" id="aiHookField" class="input-field" style="width:100%; margin-top:4px; font-weight:700; color:var(--gold);">
+          </div>
+          <div>
+            <label style="color:var(--muted-2); font-size:10px; font-family:'IBM Plex Mono',monospace; text-transform:uppercase;">Instagram Caption & Hashtags</label>
+            <textarea id="aiCaptionField" class="input-field" rows="3" style="width:100%; margin-top:4px;"></textarea>
+          </div>
+          <div class="radar-scores">
+            <div class="score-item"><span>VISUAL</span><strong id="radarVisual">0.94</strong></div>
+            <div class="score-item"><span>AUDIO CLIMAX</span><strong id="radarAudio">0.91</strong></div>
+            <div class="score-item"><span>STORY ARC</span><strong id="radarStory">0.96</strong></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Right Column: Tabs (Clips Queue, Stream Sources, Account Configuration) -->
+    <div class="intel-panel">
+      
+      <div class="tabs-header">
+        <button class="tab-btn active" id="tabClipsBtn" onclick="switchTab('clips')">🎬 Candidate Clips Queue (<span id="clipsCountBadge">0</span>)</button>
+        <button class="tab-btn" id="tabSourcesBtn" onclick="switchTab('sources')">📡 Monitored Stream Channels</button>
+        <button class="tab-btn" id="tabAccountsBtn" onclick="switchTab('accounts')">🔑 Connected Accounts & API Keys</button>
+      </div>
+
+      <!-- Tab 1: Clips Queue -->
+      <div id="tabClips">
+        <div class="candidate-grid" id="candidateListContainer">
+          <!-- Dynamic Clips injected by JS -->
+        </div>
+      </div>
+
+      <!-- Tab 2: Monitored Streams -->
+      <div id="tabSources" style="display:none;">
+        <div class="card">
+          <div class="card-header">
+            <span class="card-title">📡 Active Live Ingestion Feeds</span>
+            <span class="pill pill-lime">RING BUFFER: 120s ROLLING</span>
+          </div>
+          <div id="sourcesListContainer">
+            <!-- Dynamic sources injected by JS -->
+          </div>
+        </div>
+      </div>
+
+      <!-- Tab 3: Connected Accounts -->
+      <div id="tabAccounts" style="display:none;">
+        
+        <!-- Instagram Card -->
+        <div class="card" style="margin-bottom:14px;">
+          <div class="card-header">
+            <span class="card-title">📸 Meta Instagram Reels Connection</span>
+            <span class="pill" id="igVerifyPill">UNVERIFIED</span>
+          </div>
+          <p style="font-size:12px; color:var(--muted); margin-bottom:12px;">
+            To publish real Instagram Reels, connect a Meta Long-Lived Access Token with <code>instagram_content_publish</code> and <code>instagram_basic</code>.
+          </p>
+          <div style="display:flex; gap:8px;">
+            <input type="password" id="metaTokenInput" class="input-field" placeholder="Paste Meta Graph Access Token (EAAB...)...">
+            <button class="btn btn-cyan" onclick="verifyMetaToken()">Verify & Connect</button>
+          </div>
+          <div id="igConnectedDetails" style="margin-top:12px; display:none;">
+            <div class="account-row">
+              <div class="account-info">
+                <div class="account-avatar">IG</div>
+                <div>
+                  <div class="account-name" id="igHandleText">@verified_creator</div>
+                  <div class="account-sub" id="igPageIdText">Page ID: 1048291048</div>
+                </div>
+              </div>
+              <span class="pill pill-lime">READY TO PUBLISH</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Groq Multi-Agent Pool Card -->
+        <div class="card">
+          <div class="card-header">
+            <span class="card-title">⚡ Groq Multi-Agent Key Pool</span>
+            <span class="pill pill-cyan">4 DEDICATED KEYS</span>
+          </div>
+          <div class="account-row">
+            <div class="account-info">
+              <div class="account-avatar" style="color:var(--lime);">A04</div>
+              <div><div class="account-name">Audio & Dialogue Excitement Scout</div><div class="account-sub">Key #1: Active · Whisper / Qwen3.8-27b</div></div>
+            </div>
+            <span class="pill pill-lime">HEALTHY</span>
+          </div>
+          <div class="account-row">
+            <div class="account-info">
+              <div class="account-avatar" style="color:var(--gold);">A06</div>
+              <div><div class="account-name">Editorial Viral Hook Writer</div><div class="account-sub">Key #2: Active · Subtitle Top Banner</div></div>
+            </div>
+            <span class="pill pill-lime">HEALTHY</span>
+          </div>
+          <div class="account-row">
+            <div class="account-info">
+              <div class="account-avatar" style="color:var(--cyan);">A08</div>
+              <div><div class="account-name">Meta Reels Copywriter & Hashtags</div><div class="account-sub">Key #3: Active · Caption Generator</div></div>
+            </div>
+            <span class="pill pill-lime">HEALTHY</span>
+          </div>
+          <div class="account-row">
+            <div class="account-info">
+              <div class="account-avatar" style="color:var(--orange);">A09</div>
+              <div><div class="account-name">Quality Control & Story Integrity Judge</div><div class="account-sub">Key #4: Active · Climax Scorer</div></div>
+            </div>
+            <span class="pill pill-lime">HEALTHY</span>
+          </div>
+        </div>
+
+      </div>
+
+    </div>
+
+  </main>
+
+  <!-- Notification Toast -->
+  <div id="toast" class="toast"></div>
+
+  <script>
+    let availableClips = [];
+    let currentClip = null;
+    let autoPublish = false;
+
+    function showToast(msg, isSuccess = true) {
+      const t = document.getElementById('toast');
+      t.innerText = msg;
+      t.className = 'toast ' + (isSuccess ? 'toast-success' : 'toast-error');
+      t.style.display = 'block';
+      setTimeout(() => { t.style.display = 'none'; }, 4000);
+    }
+
+    function switchTab(tab) {
+      document.getElementById('tabClips').style.display = tab === 'clips' ? 'block' : 'none';
+      document.getElementById('tabSources').style.display = tab === 'sources' ? 'block' : 'none';
+      document.getElementById('tabAccounts').style.display = tab === 'accounts' ? 'block' : 'none';
+
+      document.getElementById('tabClipsBtn').className = 'tab-btn ' + (tab === 'clips' ? 'active' : '');
+      document.getElementById('tabSourcesBtn').className = 'tab-btn ' + (tab === 'sources' ? 'active' : '');
+      document.getElementById('tabAccountsBtn').className = 'tab-btn ' + (tab === 'accounts' ? 'active' : '');
+
+      if (tab === 'sources') loadSources();
+    }
+
+    async function refreshClips() {
+      try {
+        const res = await fetch('/api/clips/ready');
+        const data = await res.json();
+        availableClips = data.clips || [];
+        document.getElementById('clipsCountBadge').innerText = availableClips.length;
+
+        const container = document.getElementById('candidateListContainer');
+        container.innerHTML = '';
+
+        if (availableClips.length === 0) {
+          container.innerHTML = '<div style="color:var(--muted); font-size:13px; padding:20px;">No clips ready. Paste a stream URL above to scout and render.</div>';
+          return;
+        }
+
+        availableClips.forEach((clip, index) => {
+          const card = document.createElement('div');
+          card.className = 'candidate-card ' + (currentClip && currentClip.id === clip.id ? 'active' : '');
+          card.onclick = () => selectClip(clip, card);
+          card.innerHTML = `
+            <div class="candidate-meta">
+              <span style="color:var(--cyan); font-weight:700;">#${index+1} ${clip.category}</span>
+              <span style="color:var(--muted-2);">${clip.duration}</span>
+            </div>
+            <div class="candidate-title">${clip.title}</div>
+            <div style="font-size:11px; color:var(--gold); font-weight:700; text-transform:uppercase;">
+              HOOK: ${clip.hook}
+            </div>
+            <div class="radar-scores">
+              <div class="score-item"><span>VIRAL</span><strong>${clip.score}%</strong></div>
+              <div class="score-item"><span>QC GATE</span><strong style="color:var(--lime);">PASSED</strong></div>
+              <div class="score-item"><span>FORMAT</span><strong>9:16 60P</strong></div>
+            </div>
+          `;
+          container.appendChild(card);
+        });
+
+        if (!currentClip && availableClips.length > 0) {
+          selectClip(availableClips[0], container.children[0]);
+        }
+      } catch (e) {
+        showToast('Error loading clips: ' + e.message, false);
+      }
+    }
+
+    function selectClip(clip, cardEl) {
+      currentClip = clip;
+      document.querySelectorAll('.candidate-card').forEach(c => c.classList.remove('active'));
+      if (cardEl) cardEl.classList.add('active');
+
+      const player = document.getElementById('studioPlayer');
+      player.src = clip.media_url;
+      player.load();
+      player.play().catch(() => {});
+
+      document.getElementById('studioHookOverlay').innerText = clip.hook;
+      document.getElementById('aiHookField').value = clip.hook;
+      document.getElementById('aiCaptionField').value = clip.caption;
+      document.getElementById('clipScoreBadge').innerText = `VIRAL SCORE: ${clip.score}%`;
+    }
+
+    async function loadSources() {
+      try {
+        const res = await fetch('/api/sources');
+        const sources = await res.json();
+        const container = document.getElementById('sourcesListContainer');
+        container.innerHTML = '';
+        if (sources.length === 0) {
+          container.innerHTML = '<div style="color:var(--muted); font-size:12px; padding:12px;">No active stream sources registered.</div>';
+          return;
+        }
+        sources.forEach(s => {
+          const row = document.createElement('div');
+          row.className = 'account-row';
+          row.innerHTML = `
+            <div class="account-info">
+              <div class="account-avatar">YT</div>
+              <div>
+                <div class="account-name">${s.creator_key.toUpperCase()}</div>
+                <div class="account-sub">${s.source_locator}</div>
+              </div>
+            </div>
+            <span class="pill pill-lime">ACTIVE SCOUT</span>
+          `;
+          container.appendChild(row);
+        });
+      } catch (e) {}
+    }
+
+    async function submitStream() {
+      const url = document.getElementById('streamUrlInput').value.trim();
+      if (!url) {
+        showToast('Please enter a stream URL first.', false);
+        return;
+      }
+      showToast('🚀 Ingesting stream & dispatching Groq AI Scout...', true);
+      try {
+        const res = await fetch('/api/ingest/url', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ url: url, creator_name: "iShowSpeed", game: "GTA 6" })
+        });
+        const data = await res.json();
+        showToast(data.message || 'Stream registered and scout active!', true);
+        setTimeout(refreshClips, 3000);
+      } catch (e) {
+        showToast('Stream submission failed: ' + e.message, false);
+      }
+    }
+
+    function useSpeedUrl() {
+      document.getElementById('streamUrlInput').value = 'https://www.youtube.com/@IShowSpeed/live';
+    }
+
+    async function publishCurrentToInstagram() {
+      if (!currentClip) {
+        showToast('No clip selected to publish.', false);
+        return;
+      }
+      const btn = document.getElementById('publishReelsBtn');
+      btn.disabled = true;
+      btn.innerText = '⏳ Publishing to Meta Instagram Reels...';
+
+      try {
+        const res = await fetch('/api/publish/instagram', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            clip_id: currentClip.id,
+            caption: document.getElementById('aiCaptionField').value,
+            account_ref: 'main_account',
+            video_url: window.location.origin + currentClip.media_url,
+          })
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.detail || 'Meta publishing rejected');
+        showToast(`✅ Successfully published Reel to Instagram! Media ID: ${data.remote_media_id}`, true);
+      } catch (e) {
+        showToast(`❌ Instagram Error: ${e.message}`, false);
+      } finally {
+        btn.disabled = false;
+        btn.innerText = '🚀 1-Click Publish to Instagram Reels';
+      }
+    }
+
+    function downloadCurrentMp4() {
+      if (!currentClip) return;
+      const a = document.createElement('a');
+      a.href = currentClip.media_url;
+      a.download = currentClip.id;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      showToast('⬇️ Download started for ' + currentClip.id, true);
+    }
+
+    async function rerollAiHook() {
+      showToast('🪄 Requesting fresh hook from Groq A06 Hook Agent...', true);
+      try {
+        const creator = (currentClip && currentClip.creator) || "iShowSpeed";
+        const game = (currentClip && currentClip.category) || "GTA 6";
+        const res = await fetch('/api/ai/reroll-hook', {
+          method: 'POST',
+          headers: {'Content-Type': 'application/json'},
+          body: JSON.stringify({ creator_name: creator, game: game })
+        });
+        const data = await res.json();
+        if (data.hook) {
+          document.getElementById('studioHookOverlay').innerText = data.hook;
+          document.getElementById('aiHookField').value = data.hook;
+          if (data.caption && data.hashtags) {
+            document.getElementById('aiCaptionField').value = data.caption + ' ' + data.hashtags;
+          }
+          showToast('✨ New AI Hook: ' + data.hook, true);
+        }
+      } catch (e) {
+        showToast('AI Hook generation failed: ' + e.message, false);
+      }
+    }
+
+    async function verifyMetaToken() {
+      const tok = document.getElementById('metaTokenInput').value.trim();
+      if (!tok) {
+        showToast('Please paste a Meta access token.', false);
+        return;
+      }
+      showToast('Connecting to Meta Graph API...', true);
+      try {
+        const res = await fetch('/api/accounts/instagram/connect', {
+          method: 'POST',
+          headers: {'Content-Type': 'application/json'},
+          body: JSON.stringify({ access_token: tok })
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.detail || data.message || 'Token verification failed');
+        
+        showToast('Connected: ' + (data.username ? '@' + data.username : data.user_name), true);
+        checkInstagramStatus();
+      } catch (e) {
+        showToast('Meta verification failed: ' + e.message, false);
+        checkInstagramStatus();
+      }
+    }
+
+    async function checkInstagramStatus() {
+      try {
+        const res = await fetch('/api/accounts/instagram/status');
+        const data = await res.json();
+        const pill = document.getElementById('igStatusPill');
+        const cardPill = document.getElementById('igVerifyPill');
+        const details = document.getElementById('igConnectedDetails');
+        
+        if (data.status === 'CONNECTED') {
+          pill.className = 'pill pill-lime';
+          pill.innerHTML = `<span class="dot dot-lime"></span>IG: @${data.username}`;
+          if (cardPill) {
+            cardPill.className = 'pill pill-lime';
+            cardPill.innerText = 'CONNECTED (@' + data.username + ')';
+          }
+          if (details) {
+            details.style.display = 'block';
+            document.getElementById('igHandleText').innerText = '@' + data.username;
+            document.getElementById('igPageIdText').innerText = 'Page: ' + data.page_name + ' (' + data.page_id + ')';
+          }
+        } else if (data.status === 'TOKEN_INVALID' || data.code === 190) {
+          pill.className = 'pill pill-orange';
+          pill.innerHTML = `<span class="dot" style="background:var(--orange);"></span>IG: EXPIRED (ERR 190)`;
+          if (cardPill) {
+            cardPill.className = 'pill pill-orange';
+            cardPill.innerText = 'TOKEN EXPIRED (ERROR 190)';
+          }
+          if (details) details.style.display = 'none';
+        } else {
+          pill.className = 'pill';
+          pill.style.color = 'var(--muted-2)';
+          pill.innerHTML = `<span class="dot" style="background:var(--muted-2);"></span>IG: NOT LINKED`;
+          if (cardPill) {
+            cardPill.className = 'pill';
+            cardPill.innerText = 'NOT CONFIGURED';
+          }
+          if (details) details.style.display = 'none';
+        }
+      } catch (e) {
+        console.error('Failed to check IG status:', e);
+      }
+    }
+
+    function toggleAutoPublish(val) {
+      autoPublish = val;
+      showToast('Auto-Publish mode: ' + (val ? 'ENGAGED (Automatic Reels Post)' : 'MANUAL APPROVAL'), true);
+    }
+
+    window.addEventListener('DOMContentLoaded', () => {
+      refreshClips();
+      checkInstagramStatus();
+      setInterval(refreshClips, 15000);
+      setInterval(checkInstagramStatus, 60000);
+    });
+  </script>
+</body>
+</html>

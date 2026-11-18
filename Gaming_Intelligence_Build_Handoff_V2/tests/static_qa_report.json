@@ -1,0 +1,141 @@
+{
+  "status": "STATIC_DOCUMENT_QA_ONLY",
+  "summary": {
+    "passed": 25,
+    "total": 25,
+    "failures": []
+  },
+  "checks": [
+    {
+      "check": "Core docs present",
+      "pass": true,
+      "detail": "[]"
+    },
+    {
+      "check": "Nontrivial source sequence",
+      "pass": true,
+      "detail": ""
+    },
+    {
+      "check": "40 requirement IDs",
+      "pass": true,
+      "detail": "40 FR ids"
+    },
+    {
+      "check": "Two workflows preserved",
+      "pass": true,
+      "detail": ""
+    },
+    {
+      "check": "Aspirational quality not guaranteed",
+      "pass": true,
+      "detail": ""
+    },
+    {
+      "check": "Unsupported reel evidence clarified",
+      "pass": true,
+      "detail": ""
+    },
+    {
+      "check": "Single file compiled",
+      "pass": true,
+      "detail": ""
+    },
+    {
+      "check": "75 resource leads",
+      "pass": true,
+      "detail": "75"
+    },
+    {
+      "check": "Resource IDs unique",
+      "pass": true,
+      "detail": ""
+    },
+    {
+      "check": "75 resources provenance and limits",
+      "pass": true,
+      "detail": ""
+    },
+    {
+      "check": "No fabricated Ootto URL",
+      "pass": true,
+      "detail": ""
+    },
+    {
+      "check": "78 proposed fault tests",
+      "pass": true,
+      "detail": "78"
+    },
+    {
+      "check": "Failure tests unexecuted",
+      "pass": true,
+      "detail": ""
+    },
+    {
+      "check": "Severity used",
+      "pass": true,
+      "detail": ""
+    },
+    {
+      "check": "Six machine-readable schemas",
+      "pass": true,
+      "detail": "6"
+    },
+    {
+      "check": "Schema valid JSON edit_plan.json",
+      "pass": true,
+      "detail": ""
+    },
+    {
+      "check": "Schema valid JSON error.json",
+      "pass": true,
+      "detail": ""
+    },
+    {
+      "check": "Schema valid JSON event_candidate.json",
+      "pass": true,
+      "detail": ""
+    },
+    {
+      "check": "Schema valid JSON metric_snapshot.json",
+      "pass": true,
+      "detail": ""
+    },
+    {
+      "check": "Schema valid JSON publish_intent.json",
+      "pass": true,
+      "detail": ""
+    },
+    {
+      "check": "Schema valid JSON qc_result.json",
+      "pass": true,
+      "detail": ""
+    },
+    {
+      "check": "SQL starter present",
+      "pass": true,
+      "detail": ""
+    },
+    {
+      "check": "24 original requirements traced",
+      "pass": true,
+      "detail": ""
+    },
+    {
+      "check": "All 40 FR covered in PRD and stage docs",
+      "pass": true,
+      "detail": ""
+    },
+    {
+      "check": "Machine QA status explicit",
+      "pass": true,
+      "detail": ""
+    }
+  ],
+  "limitations": [
+    "No Reel MP4/audio files re-accessed in local container",
+    "No actual app or platform integration tests run",
+    "No repo clones or 15-stream benchmarks performed",
+    "No API tokens/accounts used"
+  ]
+}

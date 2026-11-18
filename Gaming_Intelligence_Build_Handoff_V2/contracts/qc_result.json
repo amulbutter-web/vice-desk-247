@@ -1,0 +1,140 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "additionalProperties": false,
+  "title": "qc_result",
+  "properties": {
+    "schema_version": {
+      "type": "string",
+      "const": "1.0"
+    },
+    "id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "trace_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "render_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "evaluator_kind": {
+      "enum": [
+        "deterministic",
+        "multimodal",
+        "human"
+      ]
+    },
+    "evaluator_version": {
+      "type": "string",
+      "minLength": 1
+    },
+    "hard_gates": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "gate_id": {
+            "type": "string",
+            "minLength": 1
+          },
+          "pass": {
+            "type": "boolean"
+          },
+          "measured_value": {
+            "type": [
+              "number",
+              "string",
+              "null"
+            ]
+          },
+          "reason": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "gate_id",
+          "pass",
+          "reason"
+        ],
+        "additionalProperties": false
+      }
+    },
+    "editorial": {
+      "type": "object",
+      "properties": {
+        "result": {
+          "enum": [
+            "pass",
+            "repair",
+            "reject",
+            "human_review"
+          ]
+        },
+        "scores": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 3
+          }
+        },
+        "findings": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "start_ms": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "end_ms": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "reason": {
+                "type": "string",
+                "minLength": 1
+              },
+              "suggested_fix": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "start_ms",
+              "end_ms",
+              "reason"
+            ],
+            "additionalProperties": false
+          }
+        }
+      },
+      "required": [
+        "result",
+        "scores",
+        "findings"
+      ],
+      "additionalProperties": false
+    },
+    "source_evidence_refs": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "minLength": 1
+      }
+    }
+  },
+  "required": [
+    "schema_version",
+    "id",
+    "trace_id",
+    "render_id",
+    "evaluator_kind",
+    "evaluator_version",
+    "hard_gates",
+    "editorial",
+    "source_evidence_refs"
+  ]
+}

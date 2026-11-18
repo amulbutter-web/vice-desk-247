@@ -1,0 +1,42 @@
+# =====================================================================
+# Coolify (coollabsio) & Localhost Production Compose Stack
+# Compatible with Coolify UI, Traefik Reverse Proxy, and Docker Compose
+# =====================================================================
+version: '3.8'
+
+services:
+  studio:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: vice-desk-studio
+    restart: unless-stopped
+    ports:
+      - "8000:8000"
+    environment:
+      - ENVIRONMENT=production
+      - PORT=8000
+      - MAX_LIVE_SOURCES=4
+      - CAPACITY_VALIDATION_TARGET=5
+      - INSTAGRAM_ACCOUNT_ID=${INSTAGRAM_ACCOUNT_ID:-}
+      - INSTAGRAM_ACCESS_TOKEN=${INSTAGRAM_ACCESS_TOKEN:-}
+      - YOUTUBE_CLIENT_SECRETS=${YOUTUBE_CLIENT_SECRETS:-}
+    volumes:
+      - studio_data:/app/data
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/api/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+    # Coolify Traefik labels for automated SSL & routing
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.vicedesk.rule=Host(`${COOLIFY_FQDN:-localhost}`)"
+      - "traefik.http.routers.vicedesk.entrypoints=websecure"
+      - "traefik.http.routers.vicedesk.tls=true"
+      - "traefik.http.routers.vicedesk.tls.certresolver=letsencrypt"
+      - "traefik.http.services.vicedesk.loadbalancer.server.port=8000"
+
+volumes:
+  studio_data:
+    driver: local

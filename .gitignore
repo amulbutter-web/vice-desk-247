@@ -1,0 +1,22 @@
+# Environment & Secrets
+.env
+*.env
+
+# Python build & cache
+__pycache__/
+*.py[cod]
+*$py.class
+.pytest_cache/
+
+# Binaries & Large Tools
+bin/
+*.exe
+
+# Heavy runtime data & video caches
+data/temp/*
+data/media/*
+data/rendered/*
+!data/rendered/.gitkeep
+data/platform.db*
+data/public_url.txt
+*.log

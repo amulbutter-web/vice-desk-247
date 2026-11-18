@@ -1,0 +1,23 @@
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "gaming-content-intelligence"
+version = "2.0.0"
+description = "Autonomous Gaming Content Intelligence & 15-Stream Clip Automation Platform"
+authors = [{ name = "Gaming Intelligence Team" }]
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = [
+    "fastapi>=0.115.0",
+    "uvicorn>=0.30.0",
+    "pydantic>=2.10.0",
+    "pydantic-settings>=2.0.0",
+    "sqlalchemy>=2.0.0",
+    "click>=8.0.0",
+    "jsonschema>=4.20.0"
+]
+
+[project.scripts]
+gaming-intel = "src.cli:cli"
