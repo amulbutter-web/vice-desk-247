@@ -34,6 +34,38 @@ class YouTubePublisher:
         self.access_token = access_token or os.environ.get("YOUTUBE_ACCESS_TOKEN", "")
         self.quota_used: int = 0
 
+    def refresh_access_token_if_needed(self) -> str:
+        """
+        Uses refresh_token with client_id and client_secret to automatically fetch
+        a fresh access token from Google OAuth 2.0 without human intervention.
+        """
+        refresh_token = os.environ.get("YOUTUBE_REFRESH_TOKEN", "")
+        client_id = os.environ.get("GOOGLE_CLIENT_ID", "")
+        client_secret = os.environ.get("GOOGLE_CLIENT_SECRET", "")
+
+        if not (refresh_token and client_id and client_secret):
+            return self.access_token
+
+        data = urllib.parse.urlencode({
+            "client_id": client_id,
+            "client_secret": client_secret,
+            "refresh_token": refresh_token,
+            "grant_type": "refresh_token",
+        }).encode("utf-8")
+
+        req = urllib.request.Request("https://oauth2.googleapis.com/token", data=data, method="POST")
+        try:
+            with urllib.request.urlopen(req, timeout=15) as resp:
+                res = json.loads(resp.read().decode("utf-8"))
+                new_tok = res.get("access_token")
+                if new_tok:
+                    self.access_token = new_tok
+                    os.environ["YOUTUBE_ACCESS_TOKEN"] = new_tok
+                    return new_tok
+        except Exception as e:
+            pass
+        return self.access_token
+
     def upload_short(
         self,
         video_path: str,
@@ -41,10 +73,15 @@ class YouTubePublisher:
         description: str,
         account_ref: str = "main_channel",
         privacy_status: str = "public",
+        retry_on_401: bool = True,
     ) -> Dict[str, Any]:
         """
         Uploads vertical video directly to YouTube as a Shorts video via YouTube Data API v3 resumable upload.
+        Automatically retries with a fresh token if 401 Unauthorized occurs.
         """
+        if not self.access_token:
+            self.refresh_access_token_if_needed()
+
         if not self.access_token:
             # Deterministic dry run if no access token
             remote_id = f"yt-short-{uuid.uuid4().hex[:12]}"
@@ -93,6 +130,16 @@ class YouTubePublisher:
                 if not upload_url:
                     raise PublishingError("Google API did not return an upload Location URL.")
         except urllib.error.HTTPError as e:
+            if e.code == 401 and retry_on_401:
+                self.refresh_access_token_if_needed()
+                return self.upload_short(
+                    video_path=video_path,
+                    title=title,
+                    description=description,
+                    account_ref=account_ref,
+                    privacy_status=privacy_status,
+                    retry_on_401=False,
+                )
             err_body = e.read().decode("utf-8")
             raise PublishingError(f"YouTube Upload Initialization failed: {err_body}")
 
