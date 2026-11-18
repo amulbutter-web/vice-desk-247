@@ -189,3 +189,21 @@ class EventHistory(Base):
     reason_code = Column(String(100), nullable=False)
     payload = Column(JSON, nullable=True)
     created_at_utc = Column(DateTime(timezone=True), nullable=False, default=utc_now)
+
+
+class FirstTimeEvent(Base):
+    __tablename__ = "first_time_events"
+
+    id = Column(String(36), primary_key=True, default=gen_uuid)
+    creator = Column(String(100), nullable=False)
+    event_category = Column(String(100), nullable=False)  # TIRE_PHYSICS, GPS_TRACKER, FACIAL_RECOGNITION, FIRST_GLITCH, ALLIGATOR_ATTACK
+    headline = Column(String(255), nullable=False)
+    stream_url = Column(String(1024), nullable=False)
+    stream_timestamp_offset = Column(String(50), nullable=False)  # e.g. "01:28:40"
+    section_range = Column(String(100), nullable=False)  # e.g. "*01:28:30-01:29:05"
+    rendered_clip_path = Column(String(1024), nullable=True)
+    status = Column(String(50), nullable=False, default="SCHEDULED")  # SCHEDULED, PROCESSING, RENDERED, PUBLISHED
+    viral_hook = Column(String(255), nullable=True)
+    metadata_json = Column(JSON, nullable=True)
+    priority = Column(Integer, default=10)
+    created_at_utc = Column(DateTime(timezone=True), nullable=False, default=utc_now)

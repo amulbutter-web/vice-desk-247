@@ -17,6 +17,7 @@ from src.ingest.live_worker import LiveIngestWorker
 from src.publishing.rights_checker import RightsChecker
 
 from src.detection.trend_scout import GTA6_VIRAL_HOTSPOTS
+from src.detection.first_time_ledger import FirstTimeLedger
 
 logger = logging.getLogger("api_routes")
 
@@ -54,6 +55,13 @@ def get_viral_hotspots():
         }
         for h in GTA6_VIRAL_HOTSPOTS
     ]
+
+
+@router.get("/trends/first-times")
+def get_first_time_events():
+    """Returns all historic 'First Time in GTA 6' cataloged breakthroughs with current processing status."""
+    ledger = FirstTimeLedger()
+    return ledger.get_all_events()
 
 
 @router.get("/health")

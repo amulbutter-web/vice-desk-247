@@ -12,6 +12,7 @@ from src.db.database import init_db
 from src.server.routes import router
 from src.server.background_scheduler import daemon_instance
 from src.server.supervisor import supervisor_instance
+from src.detection.first_time_ledger import FirstTimeLedger
 
 app = FastAPI(
     title=settings.app_name,
@@ -21,6 +22,12 @@ app = FastAPI(
 
 @app.on_event("startup")
 def start_autonomous_daemon():
+    # Seed historic First-Time GTA 6 ledger into DB if empty
+    try:
+        FirstTimeLedger().seed_initial_catalog()
+    except Exception as e:
+        print(f"Ledger seeding note: {e}")
+
     if os.environ.get("ENABLE_BACKGROUND_DAEMON", "true").lower() in ("true", "1", "yes"):
         daemon_instance.start()
         supervisor_instance.start()

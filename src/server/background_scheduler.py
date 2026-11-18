@@ -21,6 +21,7 @@ from src.config import settings
 from src.ingest.live_worker import LiveIngestWorker
 from src.publishing.publishers import YouTubePublisher, InstagramPublisher, PublishingError
 from src.detection.trend_scout import TrendScoutEngine, ViralHotspot
+from src.detection.first_time_ledger import FirstTimeLedger
 
 logger = logging.getLogger("autonomous_worker")
 
@@ -63,6 +64,7 @@ class AutonomousPublisherDaemon:
         self.yt_publisher = YouTubePublisher()
         self.ig_publisher = InstagramPublisher()
         self.trend_scout = TrendScoutEngine()
+        self.ledger = FirstTimeLedger()
         self.running = False
         self._thread: Optional[threading.Thread] = None
 
@@ -109,27 +111,44 @@ class AutonomousPublisherDaemon:
                 time.sleep(600)
                 self.consecutive_errors = 0
 
-            stream = CONTINUOUS_STREAMS[self.current_stream_idx % len(CONTINUOUS_STREAMS)]
-            dynamic_targets = self.trend_scout.get_dynamic_section_ranges()
-            target = dynamic_targets[self.current_section_idx % len(dynamic_targets)]
-            section = target["section"]
-            hotspot = target["hotspot"]
+            # Alternate between Scheduled Historic 'First-Time' events and live hotspot scouting
+            next_first_time = self.ledger.get_next_scheduled_event()
+            current_first_time_id = None
 
-            self.current_stream_idx += 1
-            self.current_section_idx += 1
+            if next_first_time and (self.current_stream_idx % 2 == 1):
+                creator = next_first_time["creator"]
+                url = next_first_time["stream_url"]
+                section = next_first_time["section_range"]
+                hook = next_first_time["viral_hook"]
+                title = f"{next_first_time['headline']} #Shorts #GTA6"
+                caption = next_first_time.get("metadata", {}).get("caption", f"{next_first_time['headline']} in GTA 6!")
+                current_first_time_id = next_first_time["id"]
+                game = "GTA 6"
+                lang = "hi" if creator in ("Mythpat", "CarryisLive", "Dattrax Plays", "RakaZone Gaming", "AS Gaming", "8bit Goldy") else "en"
+                self.current_stream_idx += 1
+                logger.info(f"[DAEMON] Processing Historic First-Time Event: {next_first_time['headline']} ({creator})")
+            else:
+                stream = CONTINUOUS_STREAMS[self.current_stream_idx % len(CONTINUOUS_STREAMS)]
+                dynamic_targets = self.trend_scout.get_dynamic_section_ranges()
+                target = dynamic_targets[self.current_section_idx % len(dynamic_targets)]
+                section = target["section"]
+                hotspot = target["hotspot"]
 
-            creator = stream["creator"]
-            url = stream["url"]
-            game = stream["game"]
-            lang = stream.get("lang", "en")
+                self.current_stream_idx += 1
+                self.current_section_idx += 1
 
-            # Craft high-converting context hook via Groq
-            viral_info = self.trend_scout.craft_viral_metadata(creator_name=creator, hotspot=hotspot, lang=lang)
-            hook = viral_info["hook"]
-            title = viral_info["title"]
-            caption = viral_info["caption"]
+                creator = stream["creator"]
+                url = stream["url"]
+                game = stream["game"]
+                lang = stream.get("lang", "en")
 
-            logger.info(f"[DAEMON] Scouting {creator} for '{hotspot.name}' — section {section}")
+                # Craft high-converting context hook via Groq
+                viral_info = self.trend_scout.craft_viral_metadata(creator_name=creator, hotspot=hotspot, lang=lang)
+                hook = viral_info["hook"]
+                title = viral_info["title"]
+                caption = viral_info["caption"]
+
+                logger.info(f"[DAEMON] Scouting {creator} for '{hotspot.name}' — section {section}")
 
             try:
                 # ── Step 1: Render Blur-Fill Ultra 1080p 9:16 Short ──
@@ -215,6 +234,9 @@ class AutonomousPublisherDaemon:
                         self.ig_published_count += 1
                 except Exception as ig_err:
                     logger.warning("[DAEMON] Instagram publish error: %s", str(ig_err)[:200])
+
+                if current_first_time_id:
+                    self.ledger.update_event_status(current_first_time_id, "PUBLISHED", video_path)
 
             except Exception as e:
                 logger.error("[DAEMON] Cycle error on %s: %s", creator, e, exc_info=True)
