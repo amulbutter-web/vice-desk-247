@@ -11,6 +11,7 @@ from src.config import settings
 from src.db.database import init_db
 from src.server.routes import router
 from src.server.background_scheduler import daemon_instance
+from src.server.supervisor import supervisor_instance
 
 app = FastAPI(
     title=settings.app_name,
@@ -22,10 +23,13 @@ app = FastAPI(
 def start_autonomous_daemon():
     if os.environ.get("ENABLE_BACKGROUND_DAEMON", "true").lower() in ("true", "1", "yes"):
         daemon_instance.start()
+        supervisor_instance.start()
+        supervisor_instance.send_startup_notification()
 
 @app.on_event("shutdown")
 def stop_autonomous_daemon():
     daemon_instance.stop()
+    supervisor_instance.stop()
 
 app.add_middleware(
     CORSMiddleware,
@@ -96,8 +100,11 @@ def get_daemon_status():
         "running": daemon_instance.running,
         "current_stream_idx": daemon_instance.current_stream_idx,
         "published_count": daemon_instance.published_count,
+        "ig_published_count": getattr(daemon_instance, "ig_published_count", 0),
         "daily_quota_hit": daemon_instance.daily_quota_hit,
         "interval_sec": daemon_instance.interval_sec,
+        "supervisor_running": supervisor_instance.running,
+        "stall_cycles": supervisor_instance.stall_cycles,
     }
 
 
