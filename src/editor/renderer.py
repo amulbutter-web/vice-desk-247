@@ -28,7 +28,7 @@ class VideoRenderer:
         edit_plan: EditPlan,
         subtitle_filters: Optional[List[str]] = None,
         ass_subtitle_path: Optional[str] = None,
-        timeout_sec: int = 180,
+        timeout_sec: int = 360,
     ) -> Dict[str, Any]:
         """
         Executes FFmpeg rendering of the specified EditPlan.
