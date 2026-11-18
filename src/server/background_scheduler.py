@@ -22,6 +22,7 @@ from src.ingest.live_worker import LiveIngestWorker
 from src.publishing.publishers import YouTubePublisher, InstagramPublisher, PublishingError
 from src.detection.trend_scout import TrendScoutEngine, ViralHotspot
 from src.detection.first_time_ledger import FirstTimeLedger
+from src.detection.chat_miner import chat_miner_instance
 
 logger = logging.getLogger("autonomous_worker")
 
@@ -115,7 +116,7 @@ class AutonomousPublisherDaemon:
             next_first_time = self.ledger.get_next_scheduled_event()
             current_first_time_id = None
 
-            if next_first_time and (self.current_stream_idx % 2 == 1):
+            if next_first_time:
                 creator = next_first_time["creator"]
                 url = next_first_time["stream_url"]
                 section = next_first_time["section_range"]

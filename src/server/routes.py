@@ -18,6 +18,7 @@ from src.publishing.rights_checker import RightsChecker
 
 from src.detection.trend_scout import GTA6_VIRAL_HOTSPOTS
 from src.detection.first_time_ledger import FirstTimeLedger
+from src.detection.chat_miner import VIRAL_CHAT_TRIGGERS, chat_miner_instance
 
 logger = logging.getLogger("api_routes")
 
@@ -62,6 +63,31 @@ def get_first_time_events():
     """Returns all historic 'First Time in GTA 6' cataloged breakthroughs with current processing status."""
     ledger = FirstTimeLedger()
     return ledger.get_all_events()
+
+
+@router.get("/trends/chat-triggers")
+def get_chat_triggers():
+    """Returns all monitored viral keywords and trigger sentiment categories."""
+    return [
+        {"keyword": kw, "category": data["category"], "priority": data["priority"], "emoji": data["emoji"]}
+        for kw, data in VIRAL_CHAT_TRIGGERS.items()
+    ]
+
+
+@router.post("/trends/chat-mine")
+def trigger_chat_mine(creator_name: str, stream_url: str, messages: Optional[List[Dict[str, Any]]] = None):
+    """Analyzes chat messages or triggers velocity spike detection."""
+    sample_msgs = messages or [
+        {"offset_sec": 4320, "text": "OMG HE FOUND THE STRIP CLUB BRO WTF 😂🔞", "author": "User1"},
+        {"offset_sec": 4322, "text": "BRO STRIP CLUB IN GTA 6 IS INSANE", "author": "User2"},
+        {"offset_sec": 4325, "text": "STRIP CLUB CARRY BHAI STRIP CLUB", "author": "User3"},
+    ]
+    discovered = chat_miner_instance.analyze_chat_events(
+        chat_messages=sample_msgs,
+        creator_name=creator_name,
+        stream_url=stream_url,
+    )
+    return {"status": "SUCCESS", "discovered_count": len(discovered), "events": discovered}
 
 
 @router.get("/health")

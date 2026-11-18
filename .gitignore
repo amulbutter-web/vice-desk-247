@@ -20,6 +20,7 @@ data/rendered/*
 !data/rendered/render-6fc1ab67.mp4
 !data/rendered/render-88d79a61.mp4
 !data/rendered/render-50c24303.mp4
+!data/rendered/render-0ddc3702.mp4
 data/platform.db*
 data/public_url.txt
 *.log

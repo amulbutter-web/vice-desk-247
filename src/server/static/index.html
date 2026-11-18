@@ -477,6 +477,7 @@
       
       <div class="tabs-header">
         <button class="tab-btn active" id="tabClipsBtn" onclick="switchTab('clips')">🎬 Candidate Clips Queue (<span id="clipsCountBadge">0</span>)</button>
+        <button class="tab-btn" id="tabFirstTimesBtn" onclick="switchTab('firsttimes')">🔥 First-Time Breakthroughs (<span id="firstTimesCountBadge">20</span>)</button>
         <button class="tab-btn" id="tabSourcesBtn" onclick="switchTab('sources')">📡 Monitored Stream Channels</button>
         <button class="tab-btn" id="tabAccountsBtn" onclick="switchTab('accounts')">🔑 Connected Accounts & API Keys</button>
       </div>
@@ -569,6 +570,22 @@
 
       </div>
 
+      <!-- Tab 4: First-Time Discovery Ledger -->
+      <div id="tabFirstTimes" style="display:none;">
+        <div class="card">
+          <div class="card-header">
+            <span class="card-title">🔥 'First-Time in GTA 6' Breakthrough Ledger & Chat Spikes</span>
+            <button class="btn btn-secondary" onclick="loadFirstTimes()" style="padding:4px 10px; font-size:11px;">🔄 Refresh Ledger</button>
+          </div>
+          <div style="font-size:12px; color:var(--muted); margin-bottom:12px;">
+            Frame-by-frame persistent catalog of GTA 6 day-1 breakthroughs across 11 livestreams. Continuously monitored via Chat Velocity & Hotspot Scouting.
+          </div>
+          <div id="firstTimesListContainer" style="max-height:480px; overflow-y:auto;">
+            <!-- Dynamic first-time events injected by JS -->
+          </div>
+        </div>
+      </div>
+
     </div>
 
   </main>
@@ -591,14 +608,64 @@
 
     function switchTab(tab) {
       document.getElementById('tabClips').style.display = tab === 'clips' ? 'block' : 'none';
+      document.getElementById('tabFirstTimes').style.display = tab === 'firsttimes' ? 'block' : 'none';
       document.getElementById('tabSources').style.display = tab === 'sources' ? 'block' : 'none';
       document.getElementById('tabAccounts').style.display = tab === 'accounts' ? 'block' : 'none';
 
       document.getElementById('tabClipsBtn').className = 'tab-btn ' + (tab === 'clips' ? 'active' : '');
+      document.getElementById('tabFirstTimesBtn').className = 'tab-btn ' + (tab === 'firsttimes' ? 'active' : '');
       document.getElementById('tabSourcesBtn').className = 'tab-btn ' + (tab === 'sources' ? 'active' : '');
       document.getElementById('tabAccountsBtn').className = 'tab-btn ' + (tab === 'accounts' ? 'active' : '');
 
       if (tab === 'sources') loadSources();
+      if (tab === 'firsttimes') loadFirstTimes();
+    }
+
+    async function loadFirstTimes() {
+      try {
+        const res = await fetch('/api/trends/first-times');
+        const events = await res.json();
+        document.getElementById('firstTimesCountBadge').innerText = events.length;
+        const container = document.getElementById('firstTimesListContainer');
+        container.innerHTML = '';
+
+        if (!events || events.length === 0) {
+          container.innerHTML = '<div style="color:var(--muted); font-size:13px; padding:20px;">No events cataloged yet.</div>';
+          return;
+        }
+
+        events.forEach(ev => {
+          const row = document.createElement('div');
+          row.style = 'background:rgba(255,255,255,0.02); border:1px solid rgba(255,255,255,0.06); border-radius:8px; padding:12px; margin-bottom:8px; display:flex; justify-content:space-between; align-items:flex-start; gap:12px;';
+          
+          const isPublished = ev.status === 'PUBLISHED';
+          const statusBadge = isPublished 
+            ? '<span class="pill pill-lime">PUBLISHED</span>' 
+            : '<span class="pill pill-cyan">SCHEDULED</span>';
+
+          row.innerHTML = `
+            <div style="flex:1;">
+              <div style="display:flex; align-items:center; gap:8px; margin-bottom:4px;">
+                <span class="badge" style="background:#ff2d55; color:white; font-size:10px; padding:2px 6px; border-radius:4px; font-weight:700;">${ev.creator}</span>
+                <span style="font-size:11px; color:var(--muted); font-family:monospace;">${ev.stream_offset}</span>
+                <span style="font-size:10px; color:#a78bfa; border:1px solid #7c3aed; padding:1px 5px; border-radius:4px;">${ev.category}</span>
+                <span style="font-size:10px; color:var(--gold); font-weight:700;">★ P${ev.priority}</span>
+              </div>
+              <div style="font-size:13px; font-weight:600; color:var(--white); margin-bottom:3px;">${ev.headline}</div>
+              <div style="font-size:11px; color:var(--cyan); font-family:monospace;">Hook: ${ev.viral_hook}</div>
+            </div>
+            <div style="text-align:right; min-width:110px;">
+              ${statusBadge}
+              <div style="margin-top:6px;">
+                <a href="${ev.stream_url}" target="_blank" style="font-size:11px; color:var(--muted); text-decoration:none;">🔗 Stream</a>
+              </div>
+            </div>
+          `;
+          container.appendChild(row);
+        });
+      } catch (err) {
+        console.error('Failed to load first-times:', err);
+      }
     }
 
     async function refreshClips() {
@@ -888,8 +955,10 @@
 
     window.addEventListener('DOMContentLoaded', () => {
       refreshClips();
+      loadFirstTimes();
       checkInstagramStatus();
       setInterval(refreshClips, 15000);
+      setInterval(loadFirstTimes, 30000);
       setInterval(checkInstagramStatus, 60000);
     });
   </script>
