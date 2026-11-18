@@ -10,12 +10,22 @@ from pathlib import Path
 from src.config import settings
 from src.db.database import init_db
 from src.server.routes import router
+from src.server.background_scheduler import daemon_instance
 
 app = FastAPI(
     title=settings.app_name,
     version="2.0.0",
     description="Gaming Content Intelligence & Live/Uploaded Clip Automation Platform",
 )
+
+@app.on_event("startup")
+def start_autonomous_daemon():
+    if os.environ.get("ENABLE_BACKGROUND_DAEMON", "true").lower() in ("true", "1", "yes"):
+        daemon_instance.start()
+
+@app.on_event("shutdown")
+def stop_autonomous_daemon():
+    daemon_instance.stop()
 
 app.add_middleware(
     CORSMiddleware,
@@ -69,6 +79,26 @@ def get_terms_page():
 @app.get("/deletion")
 def get_data_deletion_page():
     return FileResponse(Path(__file__).parent / "static" / "deletion.html")
+
+
+@app.get("/app_icon.png")
+@app.get("/icon.png")
+def get_app_icon():
+    icon_path = Path(__file__).parent / "static" / "app_icon.png"
+    if icon_path.exists():
+        return FileResponse(icon_path, media_type="image/png")
+    raise HTTPException(status_code=404, detail="Icon not found")
+
+
+@app.get("/api/daemon/status")
+def get_daemon_status():
+    return {
+        "running": daemon_instance.running,
+        "current_stream_idx": daemon_instance.current_stream_idx,
+        "published_count": daemon_instance.published_count,
+        "daily_quota_hit": daemon_instance.daily_quota_hit,
+        "interval_sec": daemon_instance.interval_sec,
+    }
 
 
 
