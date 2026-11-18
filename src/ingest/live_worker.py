@@ -41,10 +41,10 @@ class LiveIngestWorker:
         self.ffmpeg_bin = ffmpeg_bin or settings.ffmpeg_binary
         self.ytdlp_bin = shutil.which("yt-dlp") or r"C:\Users\rudra\AppData\Local\Programs\Python\Python313\Scripts\yt-dlp.EXE"
 
-    def fetch_stream_sample(self, url: str, output_dir: Path) -> Path:
+    def fetch_stream_sample(self, url: str, output_dir: Path, section_range: str = "*00:15:00-00:15:35") -> Path:
         """
-        Attempts to fetch a high-energy 30-45s sample chunk from a live stream or VOD URL
-        using yt-dlp. If the URL is already a local file or download fails (e.g. offline/network blocked),
+        Attempts to fetch a high-energy 1080p sample chunk from the live stream launch window
+        using yt-dlp. If the URL is already a local file or download fails,
         gracefully falls back to high-res local gaming sample footage.
         """
         output_dir.mkdir(parents=True, exist_ok=True)
@@ -58,17 +58,17 @@ class LiveIngestWorker:
         target_file = output_dir / f"stream_{uuid.uuid4().hex[:8]}.mp4"
         if os.path.exists(self.ytdlp_bin) and (url.startswith("http://") or url.startswith("https://")):
             try:
-                logger.info(f"Downloading stream sample via yt-dlp from: {url}")
+                logger.info(f"Downloading 1080p stream sample via yt-dlp [{section_range}] from: {url}")
                 cmd = [
                     self.ytdlp_bin,
-                    "-f", "bestvideo[height<=720]+bestaudio/best[height<=720]/best",
-                    "--download-sections", "*00:00:10-00:00:40",
-                    "--max-filesize", "50M",
+                    "-f", "bestvideo[height<=1080]+bestaudio/best[height<=1080]/best",
+                    "--download-sections", section_range,
+                    "--max-filesize", "75M",
                     "--no-playlist",
                     "-o", str(target_file),
                     url,
                 ]
-                res = subprocess.run(cmd, capture_output=True, text=True, timeout=90)
+                res = subprocess.run(cmd, capture_output=True, text=True, timeout=120)
                 if res.returncode == 0 and target_file.exists() and target_file.stat().st_size > 1000:
                     return target_file
                 else:
@@ -117,8 +117,9 @@ class LiveIngestWorker:
         url: str,
         creator_name: str = "iShowSpeed",
         game: str = "GTA 6",
-        layout_mode: str = "split_cam_game",
+        layout_mode: str = "blur_fill",
         publish_to_youtube: bool = False,
+        section_range: str = "*00:15:00-00:15:35",
     ) -> Dict[str, Any]:
         """
         Executes complete end-to-end processing pipeline for a stream:
@@ -130,7 +131,7 @@ class LiveIngestWorker:
         logger.info(f"Starting Live Ingest Job [Trace: {trace_id}] for {creator_name} ({url})")
 
         ingest_dir = settings.media_dir / "ingest"
-        source_media_path = self.fetch_stream_sample(url, ingest_dir)
+        source_media_path = self.fetch_stream_sample(url, ingest_dir, section_range=section_range)
 
         # 1. Probing & Checksum
         meta = self.probe.probe(str(source_media_path))

@@ -60,7 +60,16 @@ class EditorialPlanner:
         operations: List[EditOperation] = []
 
         # 3. Layout operation
-        if layout_mode == "split_cam_game":
+        if layout_mode == "blur_fill":
+            operations.append(
+                EditOperation(
+                    type="crop",
+                    start_ms=0,
+                    end_ms=duration_ms,
+                    parameters={"mode": "blur_fill"},
+                )
+            )
+        elif layout_mode == "split_cam_game":
             operations.append(
                 EditOperation(
                     type="crop",

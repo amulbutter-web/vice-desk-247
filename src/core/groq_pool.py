@@ -32,12 +32,22 @@ def load_groq_keys() -> List[str]:
     return []
 
 
-# Dedicated agent-to-key affinity with failover
+# Dedicated 14-agent-to-key affinity with automatic failover
 AGENT_KEY_MAP = {
     "A04_SCOUT": 0,
-    "A06_HOOK": 1,
-    "A08_COPYWRITER": 2,
-    "A09_JUDGE": 3,
+    "A04_SCOUT_BURST": 1,
+    "A05_NARRATIVE_ARCHITECT": 2,
+    "A06_HOOK": 3,
+    "A06_HOOK_ALT": 4,
+    "A07_SUBTITLE_STYLIST": 5,
+    "A07_KINETIC_ANIMATOR": 6,
+    "A08_COPYWRITER": 7,
+    "A08_METADATA_ENGINEER": 8,
+    "A08_HASHTAG_SPECIALIST": 9,
+    "A09_JUDGE": 10,
+    "A09_RUBRIC_AUDITOR": 11,
+    "A10_VIRAL_OPTIMIZER": 12,
+    "A11_FEEDBACK_LEARNER": 13,
 }
 
 PREFERRED_MODELS = [
@@ -104,7 +114,7 @@ class GroqPool:
 
         raise RuntimeError("All Groq keys and models failed or timed out.")
 
-    def generate_viral_hook(self, creator_name: str, game: str, context_notes: str = "") -> str:
+    def generate_viral_hook(self, creator_name: str, game: str, context_notes: str = "", agent_role: str = "A06_HOOK") -> str:
         """A06 Agent: Generates ultra-punchy 3-5 word scroll-stopping ASS subtitle hook."""
         system_prompt = (
             "You are an elite short-form video editor for TikTok and Instagram Reels. "
@@ -123,7 +133,7 @@ class GroqPool:
                     {"role": "system", "content": system_prompt},
                     {"role": "user", "content": user_prompt},
                 ],
-                agent_role="A06_HOOK",
+                agent_role=agent_role,
                 max_tokens=20,
                 temperature=0.8,
             )

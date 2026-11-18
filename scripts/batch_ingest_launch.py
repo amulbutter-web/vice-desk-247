@@ -132,12 +132,13 @@ def run_batch_pipeline(start_from: int = 1, max_items: int = 11, auto_publish_to
         print(f"    URL: {url} ({item['notes']})")
 
         try:
-            # Execute full AI clipping pipeline
+            # Execute full AI clipping pipeline with 1080p Blur-Fill and real game entrance window
             res = worker.process_url_job(
                 url=url,
                 creator_name=creator,
                 game=game,
-                layout_mode="split_cam_game",
+                layout_mode="blur_fill",
+                section_range="*00:15:00-00:15:35",
                 publish_to_youtube=False,
             )
 
