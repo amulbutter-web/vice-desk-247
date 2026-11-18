@@ -61,9 +61,11 @@ class LiveIngestWorker:
                 logger.info(f"Downloading 1080p stream sample via yt-dlp [{section_range}] from: {url}")
                 cmd = [
                     self.ytdlp_bin,
-                    "-f", "bestvideo[height<=1080]+bestaudio/best[height<=1080]/best",
+                    "-f", "best[ext=mp4]/bestvideo[ext=mp4]+bestaudio[ext=m4a]/best",
                     "--download-sections", section_range,
-                    "--max-filesize", "75M",
+                    "--downloader", "ffmpeg",
+                    "--downloader-args", "ffmpeg_i:-reconnect 1 -reconnect_streamed 1 -reconnect_delay_max 5",
+                    "--force-overwrites",
                     "--no-playlist",
                     "-o", str(target_file),
                     url,
@@ -80,6 +82,7 @@ class LiveIngestWorker:
         sample_candidates = [
             Path(r"c:\Users\rudra\Documents\Earn\website S\gaming-content-intelligence\data\media\live_bgmi_sample.mp4"),
             Path(__file__).parent.parent.parent / "data" / "media" / "live_bgmi_sample.mp4",
+            Path(__file__).parent.parent.parent / "data" / "rendered" / "render-0ddc3702.mp4",
         ]
         for cand in sample_candidates:
             if cand.exists() and cand.stat().st_size > 0:
@@ -87,16 +90,16 @@ class LiveIngestWorker:
                 shutil.copyfile(cand, fallback_target)
                 return fallback_target
 
-        # 4. Resilient synthetic generation via FFmpeg (low-memory 540x960 30fps)
+        # 4. Resilient synthetic generation via FFmpeg (35s 540x960 30fps)
         synth_file = output_dir / f"synth_{uuid.uuid4().hex[:8]}.mp4"
         cmd = [
             self.ffmpeg_bin, "-y",
             "-f", "lavfi", "-i", "testsrc=size=540x960:rate=30",
-            "-f", "lavfi", "-i", "sine=frequency=1000:duration=10",
+            "-f", "lavfi", "-i", "sine=frequency=1000:duration=35",
             "-c:v", "libx264", "-preset", "ultrafast", "-tune", "zerolatency",
-            "-threads", "1",
+            "-threads", "2",
             "-c:a", "aac", "-pix_fmt", "yuv420p",
-            "-t", "10",
+            "-t", "35",
             str(synth_file),
         ]
         try:

@@ -97,15 +97,17 @@ class FiltergraphGenerator:
         cmd = [
             ffmpeg_bin,
             "-y",  # Overwrite output
-            "-threads", "2",  # Restrict threads to prevent container OOM
             "-ss", f"{start_sec:.3f}",
             "-t", f"{duration_sec:.3f}",
             "-i", source_path,
+            "-filter_complex_threads", "2",
             "-filter_complex", complex_filter,
             "-map", f"[{last_v}]",
             "-map", "0:a?",
             "-af", audio_filter,
             "-c:v", "libx264",
+            "-x264-params", "threads=2:lookahead_threads=1",
+            "-threads", "2",
             "-preset", "veryfast",
             "-crf", "22",
             "-r", str(int(fps)),
