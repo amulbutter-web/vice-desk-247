@@ -3,7 +3,7 @@ FastAPI Application Entrypoint for Operator Web Dashboard and REST API.
 """
 import os
 from fastapi import FastAPI, Query, Request, HTTPException
-from fastapi.responses import PlainTextResponse
+from fastapi.responses import PlainTextResponse, FileResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.middleware.cors import CORSMiddleware
 from pathlib import Path
@@ -50,6 +50,26 @@ def root_verify_instagram_webhook(
 @app.post("/webhook/instagram")
 async def root_receive_instagram_webhook(request: Request):
     return {"status": "EVENT_RECEIVED"}
+
+
+# Policy and Compliance Pages for Meta / Instagram App Settings
+@app.get("/privacy")
+@app.get("/privacy-policy")
+def get_privacy_page():
+    return FileResponse(Path(__file__).parent / "static" / "privacy.html")
+
+
+@app.get("/terms")
+@app.get("/terms-of-service")
+def get_terms_page():
+    return FileResponse(Path(__file__).parent / "static" / "terms.html")
+
+
+@app.get("/data-deletion")
+@app.get("/deletion")
+def get_data_deletion_page():
+    return FileResponse(Path(__file__).parent / "static" / "deletion.html")
+
 
 
 
