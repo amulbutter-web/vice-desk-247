@@ -17,6 +17,9 @@ data/temp/*
 data/media/*
 data/rendered/*
 !data/rendered/.gitkeep
+!data/rendered/render-6fc1ab67.mp4
+!data/rendered/render-88d79a61.mp4
+!data/rendered/render-50c24303.mp4
 data/platform.db*
 data/public_url.txt
 *.log

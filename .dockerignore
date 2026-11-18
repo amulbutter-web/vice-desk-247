@@ -5,7 +5,7 @@ __pycache__
 *.pyc
 bin/
 *.exe
-data/temp/
+data/temp/*
 data/media/*
 data/platform.db*
 data/public_url.txt

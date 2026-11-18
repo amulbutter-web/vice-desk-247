@@ -87,14 +87,16 @@ class LiveIngestWorker:
                 shutil.copyfile(cand, fallback_target)
                 return fallback_target
 
-        # 4. Resilient synthetic generation via FFmpeg testsrc
+        # 4. Resilient synthetic generation via FFmpeg (low-memory 540x960 30fps)
         synth_file = output_dir / f"synth_{uuid.uuid4().hex[:8]}.mp4"
         cmd = [
             self.ffmpeg_bin, "-y",
-            "-f", "lavfi", "-i", "testsrc=size=1920x1080:rate=60",
-            "-f", "lavfi", "-i", "sine=frequency=1000:duration=15",
-            "-c:v", "libx264", "-c:a", "aac", "-pix_fmt", "yuv420p",
-            "-t", "15",
+            "-f", "lavfi", "-i", "testsrc=size=540x960:rate=30",
+            "-f", "lavfi", "-i", "sine=frequency=1000:duration=10",
+            "-c:v", "libx264", "-preset", "ultrafast", "-tune", "zerolatency",
+            "-threads", "1",
+            "-c:a", "aac", "-pix_fmt", "yuv420p",
+            "-t", "10",
             str(synth_file),
         ]
         try:
