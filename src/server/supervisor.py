@@ -93,11 +93,17 @@ class SupervisorAgent:
         except Exception as e:
             issues.append(f"🔴 Server UNREACHABLE: {e}")
 
-        # 2. Daemon running
+        # 2. Daemon running & auto-revival
         try:
             daemon = self._get(f"{PRODUCTION_URL}/api/daemon/status", timeout=10)
             if not daemon.get("running"):
-                issues.append("🔴 24/7 Daemon is NOT running!")
+                issues.append("🔴 24/7 Daemon was stopped! Auto-reviving...")
+                try:
+                    from src.server.background_scheduler import daemon_instance
+                    daemon_instance.start()
+                    logger.info("[SUPERVISOR] ✅ Auto-revived 24/7 daemon successfully!")
+                except Exception as rev_e:
+                    logger.error(f"[SUPERVISOR] Auto-revive failed: {rev_e}")
             else:
                 published = daemon.get("published_count", 0) + daemon.get("ig_published_count", 0)
                 quota_hit = daemon.get("daily_quota_hit", False)

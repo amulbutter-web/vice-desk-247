@@ -24,6 +24,7 @@ from src.detection.trend_scout import TrendScoutEngine, ViralHotspot
 from src.detection.first_time_ledger import FirstTimeLedger
 from src.detection.chat_miner import chat_miner_instance
 from src.detection.stream_scout_agent import StreamScoutAgent
+from src.detection.youtube_scavenger import YouTubeScavenger
 
 logger = logging.getLogger("autonomous_worker")
 
@@ -43,15 +44,13 @@ CONTINUOUS_STREAMS = [
     {"creator": "Destin",         "url": "https://www.youtube.com/watch?v=SJtQRxbFvFg", "game": "GTA 6", "lang": "en", "base_priority": 45},
 ]
 
-# 4:30 PM IST = 11:00 UTC. Stream starts ~4:15 PM, so 15 min in = game entry
-# After game entry at 4:30, the best 35s window is at the entry moment
-# We scan progressive windows for best moments
+# Extended 65s-75s complete narrative windows to maximize viewer retention and Curiosity
 SECTION_RANGES = [
-    "*00:15:00-00:15:35",  # Exact 4:30 PM IST moment (stream 15 min mark)
-    "*00:16:00-00:16:35",  # First minutes of Vice City
-    "*00:17:00-00:17:35",  # Initial exploration
-    "*00:20:00-00:20:35",  # First big reactions
-    "*00:25:00-00:25:35",  # Deeper gameplay moments
+    "*00:15:00-00:16:15",  # 75s Full Game Entry & First Vice City Impression
+    "*00:16:30-00:17:40",  # 70s Vice City Airport & Street Roam
+    "*00:20:00-00:21:15",  # 75s First Big Escalation & Police Encounter
+    "*00:25:00-00:26:10",  # 70s Deep World & Physics Exploration
+    "*00:30:00-00:31:15",  # 75s Complete Action Climax
 ]
 
 
@@ -68,6 +67,7 @@ class AutonomousPublisherDaemon:
         self.ig_publisher = InstagramPublisher()
         self.trend_scout = TrendScoutEngine()
         self.scout_agent = StreamScoutAgent()
+        self.scavenger = YouTubeScavenger()
         self.ranked_streams: List[Dict[str, Any]] = []
         self.ledger = FirstTimeLedger()
         self.running = False
@@ -78,6 +78,7 @@ class AutonomousPublisherDaemon:
         self.current_section_idx = 0
         self.published_count = 0
         self.ig_published_count = 0
+        self.scavenge_counter = 0
         self.daily_quota_hit = False
         self.consecutive_errors = 0
         self.MAX_ERRORS = 5
@@ -99,6 +100,35 @@ class AutonomousPublisherDaemon:
     def stop(self):
         self.running = False
 
+    def _cleanup_temp_disk_space(self):
+        """
+        Self-healing garbage collection: Deletes temporary downloaded video chunks and parts
+        older than 4 hours to ensure Railway cloud disk storage never exhausts over 6+ months of 24/7 operation.
+        """
+        try:
+            now = time.time()
+            cutoff = now - (4 * 3600)  # 4 hours
+            root_dir = Path(__file__).resolve().parent.parent.parent
+            temp_dirs = [
+                root_dir / "data" / "temp",
+                root_dir / "data" / "media" / "ingest",
+            ]
+            cleaned_bytes = 0
+            for d in temp_dirs:
+                if d.exists():
+                    for f in d.iterdir():
+                        if f.is_file() and f.stat().st_mtime < cutoff:
+                            sz = f.stat().st_size
+                            try:
+                                f.unlink()
+                                cleaned_bytes += sz
+                            except Exception:
+                                pass
+            if cleaned_bytes > 0:
+                logger.info(f"[DAEMON] Disk GC: Cleaned {cleaned_bytes / (1024*1024):.1f} MB of old temp files.")
+        except Exception as e:
+            logger.debug(f"[DAEMON] Disk GC note: {e}")
+
     # ─── Core Loop ───
 
     def _run_loop(self):
@@ -115,6 +145,18 @@ class AutonomousPublisherDaemon:
                 logger.error("[DAEMON] %d consecutive errors — sleeping 10 min", self.MAX_ERRORS)
                 time.sleep(600)
                 self.consecutive_errors = 0
+
+            # 6-Month Autonomous Scavenger: Replenish queue with fresh YouTube discoveries
+            self.scavenge_counter += 1
+            if self.scavenge_counter % 6 == 1:
+                try:
+                    self.scavenger.scavenge_and_queue_viral_moments(max_new_events=3)
+                except Exception as scv_err:
+                    logger.warning(f"[DAEMON] Scavenger auto-refill note: {scv_err}")
+
+            # Garbage Collection: Clean temporary raw slices older than 4 hours
+            if self.scavenge_counter % 15 == 0:
+                self._cleanup_temp_disk_space()
 
             # Alternate between Scheduled Historic 'First-Time' events and live hotspot scouting
             next_first_time = self.ledger.get_next_scheduled_event()

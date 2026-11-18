@@ -30,6 +30,20 @@ class ViralHotspot:
 # Curated live intelligence of high-heat GTA 6 locations & viral scenarios
 GTA6_VIRAL_HOTSPOTS: List[ViralHotspot] = [
     ViralHotspot(
+        id="airport_aviation_exploration",
+        name="Vice City International Airport & Working Planes",
+        category="exploration",
+        keywords=["airport", "plane", "flight", "terminal", "runway", "jets", "hangar", "fly"],
+        groq_context="Streamer breaks into Vice City International Airport, explores massive terminal interiors, and tests working airplanes and jets with insane graphics.",
+        default_hooks=[
+            "GTA 6 AIRPORT HAS FULL WORKING PLANES?! ✈️🤯",
+            "WE BROKE INTO THE VICE CITY AIRPORT 🚨✈️",
+            "GTA 6 AIRPORT INTERIORS ARE MASSIVE 😱🏢",
+            "HE FLEW A JET IN GTA 6 (GRAPHICS 10/10) 🛩️🔥",
+        ],
+        priority=11,
+    ),
+    ViralHotspot(
         id="strip_club_nightlife",
         name="Vice City Strip Club & Malibu Club",
         category="nightlife",
@@ -149,39 +163,45 @@ class TrendScoutEngine:
         elapsed_hours = max(1.0, (now - self.launch_utc).total_seconds() / 3600.0) if current_hour_offset is None else current_hour_offset
 
         ranges = [
-            # 1. Strip Club / Nightlife (typically visited ~1h to 2h into free-roam)
+            # 1. Vice City International Airport Exploration (65s full tour & plane test)
             {
-                "section": "*01:10:00-01:10:35",
-                "hotspot": self.hotspots[0],  # strip_club_nightlife
+                "section": "*01:05:00-01:06:10",
+                "hotspot": self.hotspots[0],  # airport_aviation_exploration
+                "label": "Airport Terminal & Jet Exploration",
+            },
+            # 2. Strip Club & Nightlife (70s complete visit)
+            {
+                "section": "*01:10:00-01:11:10",
+                "hotspot": self.hotspots[1],  # strip_club_nightlife
                 "label": "Strip Club & Nightlife",
             },
-            # 2. 5-Star Police Chase / Chaos (~1h 45m in)
+            # 3. 5-Star Police Chase / Military Response (75s full chase until wasted)
             {
-                "section": "*01:45:00-01:45:35",
-                "hotspot": self.hotspots[1],  # police_5star_chaos
+                "section": "*01:45:00-01:46:15",
+                "hotspot": self.hotspots[2],  # police_5star_chaos
                 "label": "5-Star Military Chase",
             },
-            # 3. Beach & Alligators (~2h 15m in)
+            # 4. Ocean Beach Physics & Florida Alligators (65s exploration)
             {
-                "section": "*02:15:00-02:15:35",
-                "hotspot": self.hotspots[2],  # beach_ocean_alligator
+                "section": "*02:15:00-02:16:15",
+                "hotspot": self.hotspots[3],  # beach_ocean_alligator
                 "label": "Beach Physics & Alligators",
             },
-            # 4. Supercar Highway Speed (~3h in)
+            # 5. Supercar Highway Top Speed & Crash Dynamics (65s)
             {
-                "section": "*03:00:00-03:00:35",
-                "hotspot": self.hotspots[4],  # supercar_top_speed
+                "section": "*03:00:00-03:01:05",
+                "hotspot": self.hotspots[5],  # supercar_top_speed
                 "label": "Supercar Top Speed",
             },
-            # 5. Florida Man Crazy NPCs (~3h 40m in)
+            # 6. Florida Man Crazy NPCs & Unscripted AI (65s)
             {
-                "section": "*03:40:00-03:40:35",
-                "hotspot": self.hotspots[5],  # florida_man_crazy_npc
+                "section": "*03:40:00-03:41:05",
+                "hotspot": self.hotspots[6],  # florida_man_crazy_npc
                 "label": "Florida Man NPC Encounters",
             },
-            # 6. Current Live Edge (most recent 30-second window)
+            # 7. Current Live Edge (most recent 65-second window)
             {
-                "section": f"*0{int(elapsed_hours):01d}:20:00-0{int(elapsed_hours):01d}:20:35",
+                "section": f"*0{int(elapsed_hours):01d}:20:00-0{int(elapsed_hours):01d}:21:05",
                 "hotspot": self.hotspots[0],
                 "label": "Recent Live Edge",
             },
