@@ -20,6 +20,7 @@ from typing import Optional
 from src.config import settings
 from src.ingest.live_worker import LiveIngestWorker
 from src.publishing.publishers import YouTubePublisher, InstagramPublisher, PublishingError
+from src.detection.trend_scout import TrendScoutEngine, ViralHotspot
 
 logger = logging.getLogger("autonomous_worker")
 
@@ -61,6 +62,7 @@ class AutonomousPublisherDaemon:
         self.worker = LiveIngestWorker()
         self.yt_publisher = YouTubePublisher()
         self.ig_publisher = InstagramPublisher()
+        self.trend_scout = TrendScoutEngine()
         self.running = False
         self._thread: Optional[threading.Thread] = None
 
@@ -108,7 +110,11 @@ class AutonomousPublisherDaemon:
                 self.consecutive_errors = 0
 
             stream = CONTINUOUS_STREAMS[self.current_stream_idx % len(CONTINUOUS_STREAMS)]
-            section = SECTION_RANGES[self.current_section_idx % len(SECTION_RANGES)]
+            dynamic_targets = self.trend_scout.get_dynamic_section_ranges()
+            target = dynamic_targets[self.current_section_idx % len(dynamic_targets)]
+            section = target["section"]
+            hotspot = target["hotspot"]
+
             self.current_stream_idx += 1
             self.current_section_idx += 1
 
@@ -117,7 +123,13 @@ class AutonomousPublisherDaemon:
             game = stream["game"]
             lang = stream.get("lang", "en")
 
-            logger.info("[DAEMON] Processing %s — section %s", creator, section)
+            # Craft high-converting context hook via Groq
+            viral_info = self.trend_scout.craft_viral_metadata(creator_name=creator, hotspot=hotspot, lang=lang)
+            hook = viral_info["hook"]
+            title = viral_info["title"]
+            caption = viral_info["caption"]
+
+            logger.info(f"[DAEMON] Scouting {creator} for '{hotspot.name}' — section {section}")
 
             try:
                 # ── Step 1: Render Blur-Fill Ultra 1080p 9:16 Short ──
@@ -131,9 +143,6 @@ class AutonomousPublisherDaemon:
                 )
                 render_id = res.get("render_id")
                 video_path = res.get("output_path")
-                hook = res.get("hook", f"{creator.upper()} GTA 6 LAUNCH MOMENT")
-                title = res.get("title", f"{creator} GTA 6 Launch Reaction")
-                caption = res.get("caption", "")
 
                 if not video_path or not Path(video_path).exists():
                     logger.warning("[DAEMON] No rendered output for %s", creator)

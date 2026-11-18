@@ -16,6 +16,8 @@ from src.ingest.stream_manager import StreamManager
 from src.ingest.live_worker import LiveIngestWorker
 from src.publishing.rights_checker import RightsChecker
 
+from src.detection.trend_scout import GTA6_VIRAL_HOTSPOTS
+
 logger = logging.getLogger("api_routes")
 
 router = APIRouter()
@@ -36,6 +38,22 @@ class ApprovalRequest(BaseModel):
     destination: str = "youtube"
     account_ref: str
     campaign_ref: str = "main"
+
+
+@router.get("/trends/hotspots")
+def get_viral_hotspots():
+    """Returns currently tracked GTA 6 viral hotspots for the TrendScoutEngine."""
+    return [
+        {
+            "id": h.id,
+            "name": h.name,
+            "category": h.category,
+            "keywords": h.keywords,
+            "priority": h.priority,
+            "sample_hooks": h.default_hooks,
+        }
+        for h in GTA6_VIRAL_HOTSPOTS
+    ]
 
 
 @router.get("/health")
