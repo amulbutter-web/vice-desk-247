@@ -208,10 +208,12 @@ class AutonomousPublisherDaemon:
 
                 # ── Step 3: Instagram Reels Upload ──
                 try:
+                    rich_desc = caption or f"Insane GTA 6 map discovery and gameplay detail in Vice City! Watch what happens!"
                     ig_caption = (
                         f"{hook} 🎮🔥\n\n"
-                        f"{creator} reacts to GTA 6 launch!\n\n"
-                        f"{'#GTA6 #GTASix #Gaming #Reels #GTA6Launch #IndianGamer #Shorts' if lang == 'hi' else '#GTA6 #GTASix #Gaming #Reels #GTA6Launch #Shorts'}"
+                        f"{rich_desc}\n\n"
+                        f"Streamer: {creator}\n\n"
+                        f"#GTA6 #GTA6Map #GTA6Secrets #GTA6Details #GTA6Physics #ViceCity #GTA6Gameplay #NextGenGaming #GamingReels #ReelsViral #Shorts"
                     )
 
                     # Upload to public CDN first (Railway serves /media/)
@@ -295,10 +297,12 @@ class AutonomousPublisherDaemon:
                 public_video_url = f"https://vice-desk-intelligence-production.up.railway.app/media/{video_filename}"
 
                 # 2. Instagram Reels Publish via Meta Graph API
+                rich_desc = caption or f"Insane GTA 6 map discovery and gameplay detail in Vice City! Watch what happens!"
                 ig_caption = (
                     f"{hook} 🎮🔥\n\n"
-                    f"{caption}\n\n"
-                    f"#GTA6 #GTASix #Gaming #Reels #Shorts #{creator.replace(' ', '')} #GTA6Launch"
+                    f"{rich_desc}\n\n"
+                    f"Streamer: {creator}\n\n"
+                    f"#GTA6 #GTA6Map #GTA6Secrets #GTA6Details #GTA6Physics #ViceCity #GTA6Gameplay #NextGenGaming #GamingReels #ReelsViral #Shorts"
                 )
 
                 container_id = self.ig_publisher.create_reel_container(

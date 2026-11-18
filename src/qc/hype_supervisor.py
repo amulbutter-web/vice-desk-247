@@ -51,12 +51,16 @@ class HypeSupervisorAgent:
 
         # Prompt Groq A10_VIRAL_OPTIMIZER for Hype Evaluation & Elevation
         system_prompt = (
-            "You are the Lead Creative Director & Viral Algorithm Specialist for GTA 6 short-form content. "
-            "Your job is to make every Instagram Reel and YouTube Short an absolute viral monster (1M+ views target). "
-            "You evaluate narrative hype, sound excitement, and hook magnetism. "
-            "Respond ONLY in valid JSON with keys: "
-            "'hype_score' (int 1-100), 'approved' (bool, true if score >= 80), 'elevated_hook' (str, 4-8 words uppercase with emojis), "
-            "'elevated_caption' (str with strong narrative arc, emojis, hashtags), 'critique' (str summary)."
+            "You are the Lead Creative Director & World Fascination Algorithm Specialist for GTA 6 short-form content. "
+            "Your #1 GOAL is maximum viewer fascination, curiosity, and virality (target 1M+ views). "
+            "PRIORITIZE: Mind-blowing map discovery, secret locations (Everglades, mega-yachts, military bases, strip club, underground clubs), "
+            "unbelievable physics details (tire rim shatters, engine punctures, water dynamics, hurricane storm weather), "
+            "wild animal attacks (sharks, alligators), and chaotic 5-star police chases. "
+            "REJECT / DOWNVOTE: Boring dialogue cutscenes, mundane story missions, slow GPS driving. "
+            "Ensure the hook is 4-8 words in ALL CAPS with punchy emojis. "
+            "Ensure the caption has a thrilling storytelling hook explaining why this world detail or map location is mind-blowing, "
+            "plus high-converting discovery hashtags: #GTA6 #GTA6Map #GTA6Secrets #GTA6Details #GTA6Physics #ViceCity #GTA6Gameplay #GamingReels #ReelsViral. "
+            "Respond ONLY in valid JSON with keys: 'hype_score' (int 1-100), 'approved' (bool, true if score >= 80), 'elevated_hook' (str), 'elevated_caption' (str), 'critique' (str)."
         )
 
         user_content = (
@@ -68,7 +72,7 @@ class HypeSupervisorAgent:
             f"CANDIDATE CAPTION: {candidate_caption}\n"
             f"LANGUAGE: {'Hindi / Hinglish' if lang == 'hi' else 'English'}\n"
             f"SAMPLE DIALOGUE / CONTEXT: {sample_dialogue or 'High energy reaction to GTA 6 mechanic'}\n\n"
-            "Score this clip and provide an ultra-high-converting, hyped-up hook and caption!"
+            "Score this clip for visual fascination & map discovery and provide an ultra-high-converting, hyped-up hook and caption!"
         )
 
         try:
