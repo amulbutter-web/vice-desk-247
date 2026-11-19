@@ -72,7 +72,7 @@ app.add_middleware(
 
 PUBLIC_PAGES = {"/privacy", "/privacy-policy", "/terms", "/terms-of-service", "/data-deletion",
                 "/deletion", "/app_icon.png", "/icon.png", "/api/health",
-                "/api/daemon/status", "/api/accounts/instagram/status"}
+                "/api/daemon/status", "/api/accounts/instagram/status", "/api/supervisor/directive"}
 WEBHOOK_PATHS = {prefix + path for prefix in ("", "/api")
                  for path in ("/webhooks/instagram", "/webhook/instagram")}
 
@@ -156,6 +156,8 @@ def get_app_icon():
 
 @app.get("/api/daemon/status")
 def get_daemon_status():
+    from src.supervisor.supervisor_instructions import SUPERVISOR_INSTRUCTIONS
+    published_total = daemon_instance.published_count + getattr(daemon_instance, "ig_published_count", 0)
     return {
         "running": daemon_instance.running,
         "current_stream_idx": daemon_instance.current_stream_idx,
@@ -165,6 +167,30 @@ def get_daemon_status():
         "interval_sec": daemon_instance.interval_sec,
         "supervisor_running": supervisor_instance.running,
         "stall_cycles": supervisor_instance.stall_cycles,
+        "mandate": {
+            "game": SUPERVISOR_INSTRUCTIONS.get("primary_game", "GTA 6"),
+            "daily_target": SUPERVISOR_INSTRUCTIONS.get("target_daily_uploads", 50),
+            "creator_count": SUPERVISOR_INSTRUCTIONS.get("creator_count", 15),
+            "published_today": published_total,
+            "progress_percent": round((published_total / max(1, SUPERVISOR_INSTRUCTIONS.get("target_daily_uploads", 50))) * 100, 1),
+        }
+    }
+
+
+@app.get("/api/supervisor/directive")
+def get_supervisor_directive():
+    from src.supervisor.supervisor_instructions import SUPERVISOR_INSTRUCTIONS
+    published_total = daemon_instance.published_count + getattr(daemon_instance, "ig_published_count", 0)
+    return {
+        "status": "active",
+        "supervisor_running": supervisor_instance.running,
+        "instructions": SUPERVISOR_INSTRUCTIONS,
+        "metrics": {
+            "published_total": published_total,
+            "target_daily": SUPERVISOR_INSTRUCTIONS.get("target_daily_uploads", 50),
+            "progress_percent": round((published_total / max(1, SUPERVISOR_INSTRUCTIONS.get("target_daily_uploads", 50))) * 100, 1),
+            "stall_cycles": supervisor_instance.stall_cycles,
+        }
     }
 
 

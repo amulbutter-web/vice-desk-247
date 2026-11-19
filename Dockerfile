@@ -1,6 +1,6 @@
 # =====================================================================
 # Vice Desk / ClipIntel — Production Container
-# Optimized for Coolify (coollabs.io), Local Docker, and Linux VPS
+# Optimized for Railway, Coolify, Local Docker, and Linux VPS
 # =====================================================================
 FROM python:3.13-slim
 
@@ -25,6 +25,18 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     && fc-cache -f -v \
     && rm -rf /var/lib/apt/lists/*
 
+# Install bgutil-pot binary for Proof-of-Origin token generation (bypasses YouTube bot challenges on cloud servers)
+RUN curl -fsSL -o /usr/local/bin/bgutil-pot \
+    https://github.com/jim60105/bgutil-ytdlp-pot-provider-rs/releases/download/v0.8.1/bgutil-pot-linux-x86_64 \
+    && chmod +x /usr/local/bin/bgutil-pot
+
+# Install yt-dlp plugin for bgutil-pot
+RUN mkdir -p /root/.config/yt-dlp/plugins \
+    && curl -fsSL -o /tmp/plugin.zip \
+    https://github.com/jim60105/bgutil-ytdlp-pot-provider-rs/releases/download/v0.8.1/bgutil-ytdlp-pot-provider-rs.zip \
+    && unzip /tmp/plugin.zip -d /root/.config/yt-dlp/plugins/ \
+    && rm /tmp/plugin.zip
+
 # Copy dependencies manifest
 COPY pyproject.toml ./
 
@@ -40,20 +52,23 @@ RUN pip install --no-cache-dir \
     click>=8.0.0 \
     "yt-dlp[default]" \
     yt-dlp-ejs>=0.8.0 \
+    bgutil-ytdlp-pot-provider \
     starlette==0.41.3 \
     pytest==8.4.2 \
     pytest-asyncio==0.26.0
 
-# Copy source code and assets
+# Copy source code, scripts, and assets
 COPY src/ ./src/
 COPY data/ ./data/
+COPY scripts/ ./scripts/
 
-# Ensure directories exist
-RUN mkdir -p /app/data/rendered /app/data/media /app/data/temp
+# Ensure entrypoint and directories are prepared
+RUN chmod +x /app/scripts/entrypoint.sh \
+    && mkdir -p /app/data/rendered /app/data/media /app/data/temp
 
 EXPOSE 8000
 
 HEALTHCHECK --interval=30s --timeout=5s --start-period=5s --retries=3 \
     CMD curl -f http://localhost:8000/api/health || exit 1
 
-CMD ["python", "-m", "uvicorn", "src.server.app:app", "--host", "0.0.0.0", "--port", "8000"]
+ENTRYPOINT ["/app/scripts/entrypoint.sh"]

@@ -88,6 +88,18 @@ class LiveIngestWorker:
             "(KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
         )
 
+        # Build resilient yt-dlp authentication & POT bypass arguments
+        auth_args = []
+        cookies_cand = Path("/tmp/youtube_cookies.txt")
+        if not cookies_cand.exists() and Path("data/youtube_cookies.txt").exists():
+            cookies_cand = Path("data/youtube_cookies.txt")
+        if cookies_cand.exists():
+            auth_args.extend(["--cookies", str(cookies_cand)])
+
+        proxy_cand = os.getenv("YOUTUBE_PROXY") or os.getenv("HTTP_PROXY") or os.getenv("HTTPS_PROXY")
+        if proxy_cand:
+            auth_args.extend(["--proxy", proxy_cand])
+
         # 3. Primary Method: Native yt-dlp slice (fast, exact timestamps, merges audio/video in 1080p60)
         if os.path.exists(self.ytdlp_bin) and (url.startswith("http://") or url.startswith("https://")):
             try:
@@ -95,7 +107,7 @@ class LiveIngestWorker:
                 cmd_native = [
                     self.ytdlp_bin,
                     "-4",
-                    "--extractor-args", "youtube:player_client=android;player_skip=web,configs",
+                    "--extractor-args", "youtube:player_client=web,mweb,android",
                     "-f", "best[height<=1080]/bestvideo[height<=1080]+bestaudio/best",
                     "--download-sections", section_range,
                     "--js-runtimes", "deno,node",
@@ -103,8 +115,7 @@ class LiveIngestWorker:
                     "--no-playlist",
                     "--no-warnings",
                     "-o", str(target_file),
-                    url,
-                ]
+                ] + auth_args + [url]
                 res_nat = subprocess.run(cmd_native, capture_output=True, text=True, timeout=180)
                 if res_nat.returncode == 0 and target_file.exists() and target_file.stat().st_size > 500_000:
                     try:
@@ -129,13 +140,12 @@ class LiveIngestWorker:
                 cmd_g = [
                     self.ytdlp_bin,
                     "-4",
-                    "--extractor-args", "youtube:player_client=android;player_skip=web,configs",
+                    "--extractor-args", "youtube:player_client=web,mweb,android",
                     "-g",
                     "-f", "best[height<=1080]/bestvideo[height<=1080]+bestaudio/best",
                     "--js-runtimes", "deno,node",
                     "--no-warnings",
-                    url,
-                ]
+                ] + auth_args + [url]
                 res_g = subprocess.run(cmd_g, capture_output=True, text=True, timeout=25)
                 if res_g.returncode == 0 and res_g.stdout.strip():
                     stream_urls = res_g.stdout.strip().splitlines()

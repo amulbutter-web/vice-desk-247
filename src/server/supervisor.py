@@ -18,6 +18,8 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Optional
 
+from src.supervisor.supervisor_instructions import SUPERVISOR_INSTRUCTIONS
+
 logger = logging.getLogger("supervisor_agent")
 
 ALERT_EMAIL = "suhanisharma180801@gmail.com"
@@ -107,9 +109,12 @@ class SupervisorAgent:
             else:
                 published = daemon.get("published_count", 0) + daemon.get("ig_published_count", 0)
                 quota_hit = daemon.get("daily_quota_hit", False)
+                target_daily = SUPERVISOR_INSTRUCTIONS.get("target_daily_uploads", 50)
+                creator_count = SUPERVISOR_INSTRUCTIONS.get("creator_count", 15)
+                game = SUPERVISOR_INSTRUCTIONS.get("primary_game", "GTA 6")
                 logger.info(
-                    "[SUPERVISOR] Daemon running, total_published=%d (YT:%d, IG:%d), quota_hit=%s",
-                    published, daemon.get("published_count", 0), daemon.get("ig_published_count", 0), quota_hit
+                    "[SUPERVISOR] MANDATE: %s ONLY | Target: %d/day across %d creators | Published: %d (YT:%d, IG:%d)",
+                    game, target_daily, creator_count, published, daemon.get("published_count", 0), daemon.get("ig_published_count", 0)
                 )
 
                 # Stall detection (only flag if neither YT nor IG published for 3 cycles and no quota excuse)

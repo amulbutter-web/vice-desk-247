@@ -50,14 +50,21 @@ class YouTubeScavenger:
         """
         Executes flat playlist search via yt-dlp to find videos without consuming Google API quota.
         """
+        auth_args = []
+        cookies_cand = Path("/tmp/youtube_cookies.txt")
+        if not cookies_cand.exists() and Path("data/youtube_cookies.txt").exists():
+            cookies_cand = Path("data/youtube_cookies.txt")
+        if cookies_cand.exists():
+            auth_args.extend(["--cookies", str(cookies_cand)])
+
         cmd = [
             self.ytdlp_bin,
             f"ytsearch{limit}:{query}",
-            "--extractor-args", "youtube:player_client=android;player_skip=web,configs",
+            "--extractor-args", "youtube:player_client=web,android",
             "--dump-json",
             "--flat-playlist",
             "--no-warnings",
-        ]
+        ] + auth_args
         results = []
         try:
             res = subprocess.run(cmd, capture_output=True, text=True, timeout=30)
