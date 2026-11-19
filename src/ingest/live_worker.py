@@ -94,7 +94,7 @@ class LiveIngestWorker:
                 logger.info(f"Downloading stream footage [{section_range}] via yt-dlp: {url}...")
                 cmd_native = [
                     self.ytdlp_bin,
-                    "-f", "bv*[ext=mp4]+ba[ext=m4a]/b[ext=mp4]/best",
+                    "-f", "bestvideo[height<=1080][ext=mp4]+bestaudio[ext=m4a]/bestvideo[height<=1080]+bestaudio/best[height<=1080]/best",
                     "--download-sections", section_range,
                     "--extractor-args", "youtube:player_client=default,visionos",
                     "--user-agent", ua,
@@ -104,7 +104,7 @@ class LiveIngestWorker:
                     "-o", str(target_file),
                     url,
                 ]
-                res_nat = subprocess.run(cmd_native, capture_output=True, text=True, timeout=120)
+                res_nat = subprocess.run(cmd_native, capture_output=True, text=True, timeout=180)
                 if res_nat.returncode == 0 and target_file.exists() and target_file.stat().st_size > 500_000:
                     try:
                         probe_check = self.probe.probe(str(target_file))
@@ -128,7 +128,7 @@ class LiveIngestWorker:
                 cmd_g = [
                     self.ytdlp_bin,
                     "-g",
-                    "-f", "bestvideo[ext=mp4]+bestaudio[ext=m4a]/bestvideo+bestaudio/best[vcodec!=none]",
+                    "-f", "bestvideo[height<=1080][ext=mp4]+bestaudio[ext=m4a]/bestvideo[height<=1080]+bestaudio/best[height<=1080]/best",
                     "--extractor-args", "youtube:player_client=default,visionos",
                     "--user-agent", ua,
                     "--no-warnings",
@@ -165,7 +165,7 @@ class LiveIngestWorker:
                             str(target_file),
                         ]
 
-                    res_ff = subprocess.run(cmd_ff, capture_output=True, text=True, timeout=60)
+                    res_ff = subprocess.run(cmd_ff, capture_output=True, text=True, timeout=120)
                     if res_ff.returncode == 0 and target_file.exists() and target_file.stat().st_size > 500_000:
                         try:
                             probe_check = self.probe.probe(str(target_file))

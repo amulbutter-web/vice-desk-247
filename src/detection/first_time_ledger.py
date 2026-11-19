@@ -277,8 +277,10 @@ class FirstTimeLedger:
                     ev = existing_events[item["headline"]]
                     if item.get("priority", 0) != ev.priority:
                         ev.priority = item["priority"]
-                    if item.get("already_published") and ev.status == "SCHEDULED":
+                    if item.get("already_published"):
                         ev.status = "PUBLISHED"
+                    elif ev.status == "FAILED":
+                        ev.status = "SCHEDULED"
                 else:
                     status = "PUBLISHED" if item.get("already_published") else "SCHEDULED"
                     ev = FirstTimeEvent(
