@@ -162,20 +162,21 @@ class LiveIngestWorker:
                 res_g = subprocess.run(cmd_g, capture_output=True, text=True, timeout=25)
                 if res_g.returncode == 0 and res_g.stdout.strip():
                     stream_urls = res_g.stdout.strip().splitlines()
-                    headers = f"User-Agent: {ua}\r\n"
                     if len(stream_urls) >= 2:
                         v_url, a_url = stream_urls[0], stream_urls[1]
                         cmd_ff = [
                             self.ffmpeg_bin, "-y",
                             "-threads", "2",
+                            "-protocol_whitelist", "file,http,https,tcp,tls",
                             "-reconnect", "1",
                             "-reconnect_at_eof", "1",
                             "-reconnect_streamed", "1",
                             "-reconnect_delay_max", "5",
-                            "-headers", headers,
+                            "-user_agent", ua,
                             "-ss", start_str,
                             "-i", v_url,
-                            "-headers", headers,
+                            "-protocol_whitelist", "file,http,https,tcp,tls",
+                            "-user_agent", ua,
                             "-ss", start_str,
                             "-i", a_url,
                             "-t", str(duration_sec),
@@ -188,11 +189,12 @@ class LiveIngestWorker:
                         cmd_ff = [
                             self.ffmpeg_bin, "-y",
                             "-threads", "2",
+                            "-protocol_whitelist", "file,http,https,tcp,tls",
                             "-reconnect", "1",
                             "-reconnect_at_eof", "1",
                             "-reconnect_streamed", "1",
                             "-reconnect_delay_max", "5",
-                            "-headers", headers,
+                            "-user_agent", ua,
                             "-ss", start_str,
                             "-i", v_url,
                             "-t", str(duration_sec),

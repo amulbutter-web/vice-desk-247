@@ -321,7 +321,7 @@ class InstagramPublisher:
         """
         if self.dry_run or not self.access_token:
             return []
-        url = f"{self.base_url}/{self.account_id}/media?fields=id,caption,media_type,permalink,timestamp&limit={limit}&access_token={self.access_token}"
+        url = f"{self.base_url}/{self.account_id}/media?fields=id,caption,media_type,permalink,timestamp,like_count,comments_count&limit={limit}&access_token={self.access_token}"
         try:
             req = urllib.request.Request(url, headers={"User-Agent": "Mozilla/5.0"}, method="GET")
             with urllib.request.urlopen(req, timeout=15) as resp:
@@ -330,6 +330,30 @@ class InstagramPublisher:
         except Exception as e:
             logger.warning(f"[INSTAGRAM] Failed to fetch recent reels for deduplication: {e}")
             return []
+
+    def get_recent_performance(self, limit: int = 25) -> List[Dict[str, Any]]:
+        """
+        Fetches engagement metrics (likes, comments, timestamps, permalinks) for recently published reels.
+        Consumed by PerformanceAnalystAgent and Strategy Supervisor.
+        """
+        reels = self.get_recent_reels(limit=limit)
+        results = []
+        for r in reels:
+            likes = r.get("like_count", 0)
+            comments = r.get("comments_count", 0)
+            caption = r.get("caption", "")
+            # Derive topic from caption first line
+            topic = caption.split("\n")[0][:60] if caption else "GTA 6 Gameplay"
+            results.append({
+                "media_id": r.get("id"),
+                "permalink": r.get("permalink"),
+                "timestamp": r.get("timestamp"),
+                "like_count": likes,
+                "comments_count": comments,
+                "engagement_score": (likes * 2) + (comments * 5),
+                "topic": topic,
+            })
+        return results
 
     def check_publishing_limit(self) -> Dict[str, Any]:
         """

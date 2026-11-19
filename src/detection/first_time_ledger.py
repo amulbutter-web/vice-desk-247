@@ -358,31 +358,48 @@ class FirstTimeLedger:
 
     def get_next_scheduled_event(self) -> Optional[Dict[str, Any]]:
         """Pulls the highest-priority SCHEDULED event from the database.
-        Automatically retries high-priority curated events if any transient failures occurred."""
+        Automatically retries high-priority curated events if any transient failures occurred.
+        Guarantees already published events are never picked up."""
         with get_db_session() as session:
-            ev = session.query(FirstTimeEvent).filter_by(status="SCHEDULED").order_by(FirstTimeEvent.priority.desc(), FirstTimeEvent.created_at_utc.asc()).first()
-            if not ev:
-                # Automatic recovery: retry curated events (priority >= 70) that failed due to previous network blocks
-                ev = session.query(FirstTimeEvent).filter(
-                    FirstTimeEvent.status == "FAILED",
-                    FirstTimeEvent.priority >= 70
-                ).order_by(FirstTimeEvent.priority.desc(), FirstTimeEvent.created_at_utc.asc()).first()
-                if ev:
-                    logger.info(f"[FIRST_TIME_LEDGER] Retrying curated event after transient failure: {ev.headline}")
-                    ev.status = "SCHEDULED"
-                    session.flush()
-
-            if ev:
+            candidates = session.query(FirstTimeEvent).filter_by(status="SCHEDULED").order_by(FirstTimeEvent.priority.desc(), FirstTimeEvent.created_at_utc.asc()).all()
+            for cand in candidates:
+                # If already published has media_id in metadata, mark published and skip
+                if cand.metadata_json and cand.metadata_json.get("media_id"):
+                    cand.status = "PUBLISHED"
+                    continue
                 return {
-                    "id": ev.id,
-                    "creator": ev.creator,
-                    "category": ev.event_category,
-                    "headline": ev.headline,
-                    "stream_url": ev.stream_url,
-                    "stream_offset": ev.stream_timestamp_offset,
-                    "section_range": ev.section_range,
-                    "viral_hook": ev.viral_hook,
-                    "metadata": ev.metadata_json or {},
+                    "id": cand.id,
+                    "creator": cand.creator,
+                    "category": cand.event_category,
+                    "headline": cand.headline,
+                    "stream_url": cand.stream_url,
+                    "stream_offset": cand.stream_timestamp_offset,
+                    "section_range": cand.section_range,
+                    "viral_hook": cand.viral_hook,
+                    "metadata": cand.metadata_json or {},
+                }
+
+            # Automatic recovery: retry curated events (priority >= 70) that failed due to previous network blocks
+            failed_candidates = session.query(FirstTimeEvent).filter(
+                FirstTimeEvent.status == "FAILED",
+                FirstTimeEvent.priority >= 70
+            ).order_by(FirstTimeEvent.priority.desc(), FirstTimeEvent.created_at_utc.asc()).all()
+            for cand in failed_candidates:
+                if cand.metadata_json and cand.metadata_json.get("media_id"):
+                    cand.status = "PUBLISHED"
+                    continue
+                cand.status = "SCHEDULED"
+                logger.info(f"[FIRST_TIME_LEDGER] Retrying curated event after transient failure: {cand.headline}")
+                return {
+                    "id": cand.id,
+                    "creator": cand.creator,
+                    "category": cand.event_category,
+                    "headline": cand.headline,
+                    "stream_url": cand.stream_url,
+                    "stream_offset": cand.stream_timestamp_offset,
+                    "section_range": cand.section_range,
+                    "viral_hook": cand.viral_hook,
+                    "metadata": cand.metadata_json or {},
                 }
         return None
 
