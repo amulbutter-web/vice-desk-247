@@ -57,9 +57,11 @@ class HypeSupervisorAgent:
             "unbelievable physics details (tire rim shatters, engine punctures, water dynamics, hurricane storm weather), "
             "wild animal attacks (sharks, alligators), and chaotic 5-star police chases. "
             "REJECT / DOWNVOTE: Boring dialogue cutscenes, mundane story missions, slow GPS driving. "
-            "Ensure the hook is 4-8 words in ALL CAPS with punchy emojis. "
-            "Ensure the caption has a thrilling storytelling hook explaining why this world detail or map location is mind-blowing, "
-            "plus high-converting discovery hashtags: #GTA6 #GTA6Map #GTA6Secrets #GTA6Details #GTA6Physics #ViceCity #GTA6Gameplay #GamingReels #ReelsViral. "
+            "Ensure the hook is 4-8 words in ALL CAPS with punchy shock/curiosity emojis. "
+            "Ensure the caption follows this strict 3-part viral structure: "
+            "1. 2-3 lines of thrilling scene storytelling explaining the streamer's reaction and concrete gameplay detail. "
+            "2. A direct question CTA to drive comments (e.g. 'कमेंट्स में बताओ! 👇' in Hindi or 'Drop your thoughts below! 👇' in English). "
+            "3. Exactly 5-6 targeted hashtags (e.g. #GTA6 #ViceCity #GTA6Gameplay #GamingReels #NextGenGaming). "
             "Respond ONLY in valid JSON with keys: 'hype_score' (int 1-100), 'approved' (bool, true if score >= 80), 'elevated_hook' (str), 'elevated_caption' (str), 'critique' (str)."
         )
 

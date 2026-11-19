@@ -9,14 +9,18 @@ from src.config import settings
 from src.db.models import Base
 
 # Engine configuration
+raw_db_url = settings.db_url
+if raw_db_url.startswith("postgres://"):
+    raw_db_url = raw_db_url.replace("postgres://", "postgresql://", 1)
+
 engine_kwargs = {"echo": False}
-if settings.db_url.startswith("sqlite"):
+if raw_db_url.startswith("sqlite"):
     engine_kwargs["connect_args"] = {"check_same_thread": False, "timeout": 30.0}
 
-engine = create_engine(settings.db_url, **engine_kwargs)
+engine = create_engine(raw_db_url, **engine_kwargs)
 
 # Enable SQLite Write-Ahead Logging (WAL) and foreign keys for high-concurrency crash safety
-if settings.db_url.startswith("sqlite"):
+if raw_db_url.startswith("sqlite"):
     @event.listens_for(engine, "connect")
     def set_sqlite_pragma(dbapi_connection, connection_record):
         cursor = dbapi_connection.cursor()

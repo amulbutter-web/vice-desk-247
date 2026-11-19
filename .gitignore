@@ -25,3 +25,5 @@ data/rendered/*
 data/platform.db*
 data/public_url.txt
 *.log
+*.part
+data/test_slice/

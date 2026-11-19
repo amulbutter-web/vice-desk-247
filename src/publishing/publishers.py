@@ -11,7 +11,7 @@ from pathlib import Path
 import urllib.request
 import urllib.error
 import urllib.parse
-from typing import Dict, Any, Optional
+from typing import Dict, Any, Optional, List
 from src.config import settings
 
 
@@ -313,6 +313,23 @@ class InstagramPublisher:
                 "error": str(e),
                 "message": "Meta User authenticated, but unable to query linked Pages.",
             }
+
+    def get_recent_reels(self, limit: int = 50) -> List[Dict[str, Any]]:
+        """
+        Fetches recently published reels/media from the Instagram account.
+        Used for strict deduplication to prevent ever reposting the same event/moment.
+        """
+        if self.dry_run or not self.access_token:
+            return []
+        url = f"{self.base_url}/{self.account_id}/media?fields=id,caption,media_type,permalink,timestamp&limit={limit}&access_token={self.access_token}"
+        try:
+            req = urllib.request.Request(url, headers={"User-Agent": "Mozilla/5.0"}, method="GET")
+            with urllib.request.urlopen(req, timeout=15) as resp:
+                data = json.loads(resp.read().decode("utf-8"))
+                return data.get("data", [])
+        except Exception as e:
+            logger.warning(f"[INSTAGRAM] Failed to fetch recent reels for deduplication: {e}")
+            return []
 
     def check_publishing_limit(self) -> Dict[str, Any]:
         """

@@ -4,8 +4,8 @@ Implements environment variable loading, strict validation, and defaults.
 """
 import os
 from pathlib import Path
-from typing import List
-from pydantic import Field
+from typing import List, Optional
+from pydantic import Field, AliasChoices
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 BASE_DIR = Path(__file__).resolve().parent.parent
@@ -25,6 +25,7 @@ class Settings(BaseSettings):
     # Database
     db_url: str = Field(
         default=f"sqlite:///{BASE_DIR / 'data' / 'platform.db'}",
+        validation_alias=AliasChoices("DATABASE_URL", "DB_URL", "db_url"),
         description="Database connection string (SQLite WAL or PostgreSQL)"
     )
     
@@ -66,8 +67,25 @@ class Settings(BaseSettings):
     ffmpeg_binary: str = "ffmpeg"
     ffprobe_binary: str = "ffprobe"
 
+    # Publishing & Credentials
+    instagram_access_token: Optional[str] = None
+    instagram_account_id: Optional[str] = "17841467596649798"
+    instagram_username: Optional[str] = "hritiksingh_8"
+    meta_app_id: Optional[str] = None
+    meta_app_secret: Optional[str] = None
+    meta_client_token: Optional[str] = None
+
+    youtube_access_token: Optional[str] = None
+    youtube_refresh_token: Optional[str] = None
+    google_client_id: Optional[str] = None
+    google_client_secret: Optional[str] = None
+
+    groq_api_keys: Optional[str] = None
+    extra_groq_scout_key_1: Optional[str] = None
+    extra_groq_scout_key_2: Optional[str] = None
+
     model_config = SettingsConfigDict(
-        env_prefix="GCI_",
+        env_prefix="",
         env_file=".env",
         extra="ignore"
     )

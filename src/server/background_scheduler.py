@@ -83,6 +83,41 @@ class AutonomousPublisherDaemon:
         self.consecutive_errors = 0
         self.MAX_ERRORS = 5
 
+    def is_already_published_on_instagram(self, hook: str, headline: str) -> bool:
+        """
+        Queries recent reels from Instagram to strictly prevent duplicate posts.
+        Checks for matching hooks, headlines, or key event identifiers.
+        """
+        try:
+            recent = self.ig_publisher.get_recent_reels(limit=40)
+            h_clean = hook.lower().replace("💀", "").replace("🚨", "").strip()
+            hl_clean = headline.lower().strip()
+
+            key_phrases = []
+            if "beach rampage" in h_clean or "beach rampage" in hl_clean:
+                key_phrases.append("beach rampage")
+            if ("strip club" in h_clean or "strip club" in hl_clean) and "vip" in h_clean:
+                key_phrases.append("strip club")
+            if "gps" in h_clean or "secret map" in h_clean:
+                key_phrases.append("secret map")
+                key_phrases.append("gps tracker")
+            if "tire" in h_clean or "tire" in hl_clean:
+                key_phrases.append("tire popped")
+            if "airport is insane" in h_clean:
+                key_phrases.append("airport is insane")
+
+            for r in recent:
+                cap = (r.get("caption") or "").lower()
+                if len(h_clean) > 10 and h_clean in cap:
+                    return True
+                for kp in key_phrases:
+                    if kp in cap:
+                        return True
+            return False
+        except Exception as e:
+            logger.warning(f"[DEDUP] Check note: {e}")
+            return False
+
     # ─── Public API ───
 
     def start(self):
@@ -175,6 +210,13 @@ class AutonomousPublisherDaemon:
                 game = "GTA 6"
                 lang = "hi" if creator in ("Mythpat", "CarryisLive", "Dattrax Plays", "RakaZone Gaming", "AS Gaming", "8bit Goldy") else "en"
                 self.current_stream_idx += 1
+
+                # Strict Deduplication Check before expensive downloading/rendering
+                if self.is_already_published_on_instagram(hook, next_first_time["headline"]):
+                    logger.info(f"[DAEMON] Event '{next_first_time['headline']}' is ALREADY published on Instagram. Advancing queue.")
+                    self.ledger.update_event_status(current_first_time_id, "PUBLISHED", "ALREADY_ON_IG")
+                    continue
+
                 logger.info(f"[DAEMON] Processing Historic First-Time Event: {next_first_time['headline']} ({creator})")
             else:
                 if not self.ranked_streams or (self.current_stream_idx % len(CONTINUOUS_STREAMS) == 0):
@@ -293,13 +335,18 @@ class AutonomousPublisherDaemon:
 
                 # ── Step 3: Instagram Reels Upload ──
                 try:
-                    rich_desc = caption or f"Insane GTA 6 map discovery and gameplay detail in Vice City! Watch what happens!"
-                    ig_caption = (
-                        f"{hook} 🎮🔥\n\n"
-                        f"{rich_desc}\n\n"
-                        f"Streamer: {creator}\n\n"
-                        f"#GTA6 #GTA6Map #GTA6Secrets #GTA6Details #GTA6Physics #ViceCity #GTA6Gameplay #NextGenGaming #GamingReels #ReelsViral #Shorts"
-                    )
+                    # Clean high-converting story caption
+                    clean_caption = caption.strip() if caption else f"Insane GTA 6 discovery and gameplay moment in Vice City! Watch what happens!"
+                    if not clean_caption.startswith(hook):
+                        ig_caption = f"{hook} 🎮🔥\n\n{clean_caption}"
+                    else:
+                        ig_caption = clean_caption
+
+                    if f"Streamer: {creator}" not in ig_caption:
+                        ig_caption += f"\n\nStreamer: {creator}"
+
+                    if "#GTA6" not in ig_caption:
+                        ig_caption += "\n\n#GTA6 #ViceCity #GTA6Gameplay #GamingReels #NextGenGaming #ViralReels"
 
                     # Upload to public CDN first (Railway serves /media/)
                     video_filename = Path(video_path).name
