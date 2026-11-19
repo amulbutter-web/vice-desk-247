@@ -312,7 +312,7 @@ class StreamScoutAgent:
         """Quick inspection of YouTube stream using yt-dlp metadata."""
         import subprocess
         try:
-            cmd = ["yt-dlp", "--dump-json", "--skip-download", "--no-warnings", url]
+            cmd = ["yt-dlp", "--extractor-args", "youtube:player_client=android,web", "--dump-json", "--skip-download", "--no-warnings", url]
             res = subprocess.run(cmd, capture_output=True, text=True, timeout=12)
             if res.returncode == 0:
                 data = json.loads(res.stdout)
