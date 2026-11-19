@@ -426,16 +426,27 @@ def publish_youtube(req: YouTubePublishRequest):
 
 @router.get("/accounts/youtube/status")
 def get_youtube_status():
-    """Returns connected state of YouTube OAuth token."""
-    tok = os.environ.get("YOUTUBE_ACCESS_TOKEN", "")
-    if not tok:
-        return {"status": "NOT_CONFIGURED", "connected": False, "message": "No YouTube OAuth token configured."}
-    return {
-        "status": "CONNECTED",
-        "connected": True,
-        "token_prefix": tok[:10] + "...",
-        "message": "YouTube OAuth 2.0 Upload Permission Active",
-    }
+    """Check the authenticated channel without initiating an upload."""
+    import json
+    from urllib.error import HTTPError, URLError
+    from urllib.request import Request as GoogleRequest, urlopen
+    from src.publishing.publishers import YouTubePublisher
+
+    token = YouTubePublisher().refresh_access_token_if_needed()
+    if not token:
+        return {"status": "NOT_CONFIGURED", "connected": False}
+    request = GoogleRequest(
+        "https://www.googleapis.com/youtube/v3/channels?part=id&mine=true",
+        headers={"Authorization": "Bearer " + token},
+    )
+    try:
+        with urlopen(request, timeout=12) as response:
+            connected = bool(json.load(response).get("items"))
+    except HTTPError as exc:
+        return {"status": "PROVIDER_ERROR", "connected": False, "http_status": exc.code}
+    except (URLError, TimeoutError, ValueError):
+        return {"status": "CHECK_UNAVAILABLE", "connected": False}
+    return {"status": "CONNECTED" if connected else "NO_CHANNEL", "connected": connected}
 
 
 @router.post("/ingest/url")
