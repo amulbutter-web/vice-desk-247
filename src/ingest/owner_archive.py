@@ -26,33 +26,40 @@ def archive_excerpt(url, section_start, seconds, output_dir, ffmpeg):
         candidate = (root / (video_id + ".mp4")).resolve()
         if candidate.parent == root and candidate.is_file():
             source = candidate
-    if source is None:
-        endpoint = os.getenv("VICE_ARCHIVE_ENDPOINT")
-        key = os.getenv("VICE_ARCHIVE_READ_KEY")
-        if not endpoint or not key:
-            return None
+    endpoint = os.getenv("VICE_ARCHIVE_ENDPOINT")
+    key = os.getenv("VICE_ARCHIVE_READ_KEY")
+    if source is None and endpoint and key:
         try:
             req = Request(endpoint + "?id=" + video_id, headers={"Authorization": "Bearer " + key})
             with urlopen(req, timeout=10) as response:
                 signed = json.load(response)["url"]
-            if urlsplit(signed).scheme != "https" or urlsplit(signed).netloc != urlsplit(endpoint).netloc:
-                return None
-            source = signed
-            protocols = "https,tls,tcp"
+            if urlsplit(signed).scheme == "https" and urlsplit(signed).netloc == urlsplit(endpoint).netloc:
+                source = signed
+                protocols = "https,tls,tcp"
         except (HTTPError, URLError, TimeoutError, KeyError, ValueError) as exc:
             if getattr(exc, "code", None) != 404:
                 logging.getLogger(__name__).warning("Archive lookup unavailable (%s)", type(exc).__name__)
+    if source is None:
+        template = os.getenv("VICE_ORIGINAL_URL_TEMPLATE", "")
+        parsed_template = urlsplit(template)
+        if (parsed_template.scheme != "https" or not parsed_template.hostname
+                or "{video_id}" not in parsed_template.path):
             return None
+        source = template.replace("{video_id}", video_id)
+        protocols = "https,tls,tcp"
     target=Path(output_dir)/("original_"+uuid.uuid4().hex+".mp4")
     try:
         subprocess.run([ffmpeg,"-nostdin","-v","error","-ss",section_start,"-protocol_whitelist",protocols,
                         "-format_whitelist","mov","-i",str(source),"-t",str(seconds),"-map","0:v:0","-map","0:a:0?",
                         "-c:v","libx264","-preset","veryfast","-c:a","aac",str(target)],check=True,timeout=240,capture_output=True)
-        if target.stat().st_size<1024:raise ValueError("Requested interval has no source footage")
+        if target.stat().st_size < 1024:
+            target.unlink(missing_ok=True)
+            return None
         return target
-    except subprocess.CalledProcessError:
+    except (subprocess.CalledProcessError, subprocess.TimeoutExpired):
         target.unlink(missing_ok=True)
-        raise ValueError("Could not decode archived interval") from None
+        logging.getLogger(__name__).warning("Archived interval unavailable for %s", video_id)
+        return None
     except BaseException:
         target.unlink(missing_ok=True)
         raise
