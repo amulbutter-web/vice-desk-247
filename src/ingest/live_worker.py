@@ -107,6 +107,8 @@ class LiveIngestWorker:
                 cmd_native = [
                     self.ytdlp_bin,
                     "-4",
+                    "--extractor-args", "youtubepot-bgutilhttp:base_url=http://127.0.0.1:4416",
+                    "--extractor-args", "youtubepot-bgutilcli:cli_path=/usr/local/bin/bgutil-pot",
                     "--extractor-args", "youtube:player_client=web,mweb,android",
                     "-f", "best[height<=1080]/bestvideo[height<=1080]+bestaudio/best",
                     "--download-sections", section_range,
@@ -140,6 +142,8 @@ class LiveIngestWorker:
                 cmd_g = [
                     self.ytdlp_bin,
                     "-4",
+                    "--extractor-args", "youtubepot-bgutilhttp:base_url=http://127.0.0.1:4416",
+                    "--extractor-args", "youtubepot-bgutilcli:cli_path=/usr/local/bin/bgutil-pot",
                     "--extractor-args", "youtube:player_client=web,mweb,android",
                     "-g",
                     "-f", "best[height<=1080]/bestvideo[height<=1080]+bestaudio/best",

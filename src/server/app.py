@@ -72,7 +72,7 @@ app.add_middleware(
 
 PUBLIC_PAGES = {"/privacy", "/privacy-policy", "/terms", "/terms-of-service", "/data-deletion",
                 "/deletion", "/app_icon.png", "/icon.png", "/api/health",
-                "/api/daemon/status", "/api/accounts/instagram/status", "/api/supervisor/directive"}
+                "/api/daemon/status", "/api/accounts/instagram/status", "/api/supervisor/directive", "/api/diag/ytdlp"}
 WEBHOOK_PATHS = {prefix + path for prefix in ("", "/api")
                  for path in ("/webhooks/instagram", "/webhook/instagram")}
 
@@ -191,6 +191,27 @@ def get_supervisor_directive():
             "progress_percent": round((published_total / max(1, SUPERVISOR_INSTRUCTIONS.get("target_daily_uploads", 50))) * 100, 1),
             "stall_cycles": supervisor_instance.stall_cycles,
         }
+    }
+
+
+@app.get("/api/diag/ytdlp")
+def diag_ytdlp(url: str = "https://www.youtube.com/watch?v=u1OGXGfOEI0"):
+    import subprocess, shutil
+    ytdlp = shutil.which("yt-dlp") or "yt-dlp"
+    cmd = [
+        ytdlp,
+        "-v",
+        "--extractor-args", "youtubepot-bgutilhttp:base_url=http://127.0.0.1:4416",
+        "--extractor-args", "youtubepot-bgutilcli:cli_path=/usr/local/bin/bgutil-pot",
+        "--extractor-args", "youtube:player_client=web,mweb,android",
+        "--skip-download",
+        url
+    ]
+    res = subprocess.run(cmd, capture_output=True, text=True, timeout=25)
+    return {
+        "returncode": res.returncode,
+        "stdout": res.stdout,
+        "stderr": res.stderr,
     }
 
 
