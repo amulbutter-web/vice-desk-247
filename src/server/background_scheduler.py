@@ -272,7 +272,7 @@ class AutonomousPublisherDaemon:
                 render_id = res.get("render_id")
                 video_path = res.get("output_path")
 
-                if not video_path or not Path(video_path).exists():
+                if not res.get("qc_passed") or not video_path or not Path(video_path).exists():
                     logger.warning("[DAEMON] No rendered output for %s — skipping social publish", creator)
                     self.consecutive_errors += 1
                     if current_first_time_id:
@@ -300,15 +300,11 @@ class AutonomousPublisherDaemon:
                 logger.info("[DAEMON] Rendered %s for %s | Hook: %s", render_id, creator, hook)
 
                 # ── Step 2: YouTube Shorts Upload ──
+                destinations = []
                 if not self.daily_quota_hit:
                     try:
-                        lang_tag = "Hindi" if lang == "hi" else ""
-                        yt_title = f"{creator} GTA 6 LAUNCH {hook} {'🇮🇳' if lang == 'hi' else '🔥'} #Shorts #GTA6"
-                        yt_desc = (
-                            f"{caption}\n\n"
-                            f"Stream: {url}\n"
-                            f"#GTA6 #GTASix #GTA6Launch #Shorts #Gaming"
-                        )
+                        yt_title = res["title"]
+                        yt_desc = f"{res['caption']}\n\nStream: {url}"
                         yt_res = self.yt_publisher.upload_short(
                             video_path=video_path,
                             title=yt_title,
@@ -317,7 +313,9 @@ class AutonomousPublisherDaemon:
                             retry_on_401=True,
                         )
                         logger.info("[DAEMON] ✅ YouTube: %s", yt_res.get("video_url"))
-                        self.published_count += 1
+                        if yt_res.get("status") == "PUBLISHED" and yt_res.get("remote_id"):
+                            destinations.append("youtube")
+                            self.published_count += 1
                     except PublishingError as pe:
                         err = str(pe)
                         if "uploadLimitExceeded" in err or "quotaExceeded" in err:
@@ -334,18 +332,7 @@ class AutonomousPublisherDaemon:
 
                 # ── Step 3: Instagram Reels Upload ──
                 try:
-                    # Clean high-converting story caption
-                    clean_caption = caption.strip() if caption else f"Insane GTA 6 discovery and gameplay moment in Vice City! Watch what happens!"
-                    if not clean_caption.startswith(hook):
-                        ig_caption = f"{hook} 🎮🔥\n\n{clean_caption}"
-                    else:
-                        ig_caption = clean_caption
-
-                    if f"Streamer: {creator}" not in ig_caption:
-                        ig_caption += f"\n\nStreamer: {creator}"
-
-                    if "#GTA6" not in ig_caption:
-                        ig_caption += "\n\n#GTA6 #ViceCity #GTA6Gameplay #GamingReels #NextGenGaming #ViralReels"
+                    ig_caption = f"{res['caption']}\n\nStreamer: {creator}"
 
                     # Upload to public CDN first (Railway serves /media/)
                     video_filename = Path(video_path).name
@@ -365,12 +352,15 @@ class AutonomousPublisherDaemon:
                             account_ref=self.ig_publisher.account_id,
                         )
                         logger.info("[DAEMON] ✅ Instagram Reel published: %s", ig_res.get("remote_id"))
-                        self.ig_published_count += 1
+                        if not self.ig_publisher.dry_run and str(ig_res.get("remote_id", "")).isdigit():
+                            destinations.append("instagram")
+                            self.ig_published_count += 1
                 except Exception as ig_err:
                     logger.warning("[DAEMON] Instagram publish error: %s", str(ig_err)[:200])
 
                 if current_first_time_id:
-                    self.ledger.update_event_status(current_first_time_id, "PUBLISHED", video_path)
+                    status = {2: "PUBLISHED", 1: "PARTIAL", 0: "FAILED"}[len(destinations)]
+                    self.ledger.update_event_status(current_first_time_id, status, video_path)
 
             except Exception as e:
                 logger.error("[DAEMON] Cycle error on %s: %s", creator, e, exc_info=True)
@@ -422,7 +412,7 @@ class AutonomousPublisherDaemon:
                     publish_to_youtube=False,
                 )
                 video_path = res.get("output_path")
-                if not video_path or not Path(video_path).exists():
+                if not res.get("qc_passed") or not video_path or not Path(video_path).exists():
                     logger.warning(f"[BATCH_BLAST] Render failed for {creator}")
                     continue
 
@@ -430,13 +420,7 @@ class AutonomousPublisherDaemon:
                 public_video_url = f"https://vice-desk-intelligence-production.up.railway.app/media/{video_filename}"
 
                 # 2. Instagram Reels Publish via Meta Graph API
-                rich_desc = caption or f"Insane GTA 6 map discovery and gameplay detail in Vice City! Watch what happens!"
-                ig_caption = (
-                    f"{hook} 🎮🔥\n\n"
-                    f"{rich_desc}\n\n"
-                    f"Streamer: {creator}\n\n"
-                    f"#GTA6 #GTA6Map #GTA6Secrets #GTA6Details #GTA6Physics #ViceCity #GTA6Gameplay #NextGenGaming #GamingReels #ReelsViral #Shorts"
-                )
+                ig_caption = f"{res['caption']}\n\nStreamer: {creator}"
 
                 container_id = self.ig_publisher.create_reel_container(
                     video_url=public_video_url,
@@ -450,6 +434,8 @@ class AutonomousPublisherDaemon:
                         account_ref=self.ig_publisher.account_id,
                     )
                     remote_id = ig_res.get("remote_id")
+                    if self.ig_publisher.dry_run or not str(remote_id or "").isdigit():
+                        break
                     self.ig_published_count += 1
                     self.ledger.update_event_status(event_id, "PUBLISHED", video_path)
                     logger.info(f"[BATCH_BLAST] ✅ [{i+1}/{target_count}] Published {creator} to Instagram: {remote_id}")

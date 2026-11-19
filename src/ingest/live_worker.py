@@ -27,11 +27,11 @@ from src.editor.renderer import VideoRenderer
 from src.qc.hard_gates import HardQualityGates
 from src.qc.editorial_judge import EditorialJudge
 from src.qc.supervisor import QCSupervisor
-from src.core.groq_pool import GroqPool
+from src.editor.clip_copy import clip_copy
 from src.db.database import init_db
 
 logger = logging.getLogger("live_worker")
-groq_pool = GroqPool()
+
 
 
 class LiveIngestWorker:
@@ -213,7 +213,7 @@ class LiveIngestWorker:
         freeze_frames = visual_det.detect_freeze_frames(str(source_media_path))
 
         # Determine peak
-        peak_ms = audio_peaks[0]["timestamp_ms"] if audio_peaks else meta["duration_ms"] // 2
+        peak_ms = max(audio_peaks, key=lambda p: p["rms_db"])["timestamp_ms"] if audio_peaks else meta["duration_ms"] // 2
 
         # 3. Narrative Boundary Expansion
         boundaries = boundary_engine.expand_event_boundaries(
@@ -231,73 +231,10 @@ class LiveIngestWorker:
             visual_activity=0.80,
         )
 
-        # 5. Generate AI Viral Hook & Reels Metadata via Groq Agent Pool
-        ai_hook = groq_pool.generate_viral_hook(creator_name=creator_name, game=game)
-        ai_meta = groq_pool.generate_reels_metadata(creator_name=creator_name, game=game, hook=ai_hook)
-
-        # 5b. Audit & Elevate Hype via HypeSupervisorAgent (LLM Quality Gate)
-        from src.qc.hype_supervisor import hype_supervisor_instance
-        dur_sec = boundaries["duration_ms"] / 1000.0
-        lang_choice = "hi" if creator_name in ("CarryisLive", "Mythpat", "Dattrax Plays", "RakaZone Gaming", "AS Gaming", "8bit Goldy") else "en"
-        audit = hype_supervisor_instance.audit_and_elevate_clip(
-            creator=creator_name,
-            event_category="GTA6_ACTION",
-            headline=f"{creator_name} GTA 6 Launch Moment",
-            duration_sec=dur_sec,
-            candidate_hook=ai_hook,
-            candidate_caption=ai_meta.get("caption", ""),
-            lang=lang_choice,
-        )
-        ai_hook = audit.get("enhanced_hook", ai_hook)
-        if audit.get("enhanced_caption"):
-            ai_meta["caption"] = audit["enhanced_caption"]
-
-        # 6. Generate Kinetic Word-by-Word ASS Subtitles across full video duration
-        subtitle_gen = SubtitleGenerator()
+        ai_meta = clip_copy(creator_name, game, boundaries, scene_cuts, peak_ms if audio_peaks else None)
+        ai_hook = ai_meta["hook"]
         ass_sub_path = settings.rendered_dir / f"subs_{trace_id[:8]}.ass"
-        
-        full_dur_ms = boundaries["duration_ms"]
-        words = []
-        curr_ms = 600
-
-        if lang_choice == "hi":
-            phrases = [
-                ["BHAI", "YEH", "KYA", "HUA!"],
-                ["LOOK", "AT", "THIS", "CAR!"],
-                ["STRIP", "CLUB", "FOUND", "💀"],
-                ["UNBELIEVABLE", "GTA", "6", "GRAPHICS!"],
-                ["POLICE", "GPS", "TRACKER", "ALERT!"],
-                ["NO", "WAY", "THIS", "HAPPENED!"],
-                ["WAIT", "FOR", "THE", "END!"],
-                ["REALEST", "REACTION", "EVER", "RECORDED!"],
-            ]
-        else:
-            phrases = [
-                ["NO", "WAY", "WATCH", "THIS!"],
-                ["LOOK", "AT", "THIS", "PHYSICS!"],
-                ["FIRST", "TIME", "IN", "GTA6!"],
-                ["HE", "ACTUALLY", "FOUND", "IT!"],
-                ["POLICE", "SCANNING", "EVERY", "CAMERA!"],
-                ["WAIT", "FOR", "THE", "CLIMAX!"],
-                ["BEST", "LAUNCH", "MOMENT", "EVER!"],
-                ["DROP", "A", "LIKE", "NOW!"],
-            ]
-
-        phrase_idx = 0
-        while curr_ms < full_dur_ms - 1200:
-            p = phrases[phrase_idx % len(phrases)]
-            phrase_idx += 1
-            w_dur = 420
-            for w in p:
-                words.append({"word": w, "start_ms": curr_ms, "end_ms": min(full_dur_ms, curr_ms + w_dur)})
-                curr_ms += w_dur + 60
-            curr_ms += 450
-
-        subtitle_gen.generate_ass(
-            words=words,
-            output_ass_path=str(ass_sub_path),
-            hook_text=ai_hook,
-        )
+        SubtitleGenerator().generate_ass(words=[], output_ass_path=str(ass_sub_path), hook_text=ai_hook)
 
         # 7. Editorial Planning
         planner = EditorialPlanner(canvas_width=1080, canvas_height=1920, fps=60.0)
@@ -384,7 +321,7 @@ class LiveIngestWorker:
             session.flush()
 
         yt_publish_info = None
-        if publish_to_youtube:
+        if publish_to_youtube and all_hard_pass and is_valid:
             try:
                 from src.publishing.publishers import YouTubePublisher
                 yt_pub = YouTubePublisher()
@@ -410,7 +347,7 @@ class LiveIngestWorker:
             "media_url": f"/media/{render_id}.mp4",
             "duration_ms": render_meta["duration_ms"],
             "resolution": f"{render_meta['width']}x{render_meta['height']}",
-            "qc_passed": all_hard_pass,
+            "qc_passed": all_hard_pass and is_valid,
             "creator": creator_name,
             "title": ai_meta.get("title", f"{creator_name} - {ai_hook}"),
             "hook": ai_hook,

@@ -91,7 +91,7 @@ class SubtitleGenerator:
         if hook_text and hook_text.strip():
             clean_hook = hook_text.strip().upper()
             ass_lines.append(
-                f"Dialogue: 1,0:00:00.00,0:02:30.00,HookBanner,,0,0,0,,{clean_hook}"
+                f"Dialogue: 1,0:00:00.00,0:00:03.00,HookBanner,,0,0,0,,{clean_hook}"
             )
 
         # 2. Word Groups with Active Highlight
