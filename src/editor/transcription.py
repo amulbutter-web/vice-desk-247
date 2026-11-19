@@ -142,6 +142,15 @@ class GroqTranscriptionEngine:
                         (words[-1]["end_ms"] / 1000.0) if words else 0.0,
                         text[:60],
                     )
+
+                    has_devanagari = any(
+                        any("\u0900" <= c <= "\u097F" for c in w["word"])
+                        for w in words
+                    )
+                    if has_devanagari:
+                        words = self.transliterate_to_hinglish(words)
+                        text = " ".join(w["word"] for w in words)
+
                     return {"text": text, "words": words}
 
             except urllib.error.HTTPError as he:
@@ -156,6 +165,68 @@ class GroqTranscriptionEngine:
                 )
 
         return {"text": "", "words": []}
+
+    def transliterate_to_hinglish(self, words: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+        """
+        Transliterates Hindi/Devanagari word list into high-impact Roman Hinglish,
+        preserving exact 1:1 timestamps for synchronized mobile subtitles.
+        """
+        if not words:
+            return words
+        try:
+            from src.core.groq_pool import GroqPool
+            pool = GroqPool(self.keys)
+            raw_list = [w["word"] for w in words]
+            prompt = (
+                "You are an elite subtitle transliterator for Indian gaming Reels (CarryMinati, Mythpat).\n"
+                "Transliterate the following list of spoken Hindi words into high-energy Roman Hinglish "
+                "(uppercase, exact 1:1 word count and order, preserving punctuation).\n"
+                f"Input words: {json.dumps(raw_list, ensure_ascii=False)}\n"
+                "Return ONLY a valid JSON array of strings in UPPERCASE, nothing else."
+            )
+            ans = pool.generate_chat(
+                [{"role": "user", "content": prompt}],
+                agent_role="A07_SUBTITLE_STYLIST",
+                max_tokens=len(words) * 6 + 100,
+                temperature=0.1,
+            )
+            import re
+            m = re.search(r"\[.*\]", ans, re.DOTALL)
+            if m:
+                transliterated = json.loads(m.group(0))
+                if len(transliterated) == len(words):
+                    for i, tw in enumerate(transliterated):
+                        words[i]["word"] = str(tw).strip().upper()
+                    logger.info("[TRANSCRIPTION] Successfully transliterated %d words to Roman Hinglish", len(words))
+                    return words
+        except Exception as e:
+            logger.warning("[TRANSCRIPTION] Groq Hinglish transliteration note: %s", e)
+
+        # Fallback rule-based transliterator to ensure zero raw Devanagari in ASS
+        return self._fallback_transliterate(words)
+
+    @staticmethod
+    def _fallback_transliterate(words: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+        """Deterministic fallback transliterator for Devanagari characters."""
+        d_map = {
+            'अ': 'A', 'आ': 'AA', 'इ': 'I', 'ई': 'EE', 'उ': 'U', 'ऊ': 'OO', 'ऋ': 'RI',
+            'ए': 'E', 'ऐ': 'AI', 'ओ': 'O', 'औ': 'AU', 'अं': 'AN', 'अः': 'AH',
+            'क': 'K', 'ख': 'KH', 'ग': 'G', 'घ': 'GH', 'ङ': 'NG',
+            'च': 'CH', 'छ': 'CHH', 'ज': 'J', 'झ': 'JH', 'ञ': 'NY',
+            'ट': 'T', 'ठ': 'TH', 'ड': 'D', 'ढ': 'DH', 'ण': 'N',
+            'त': 'T', 'थ': 'TH', 'द': 'D', 'ध': 'DH', 'न': 'N',
+            'प': 'P', 'फ': 'PH', 'ब': 'B', 'भ': 'BH', 'म': 'M',
+            'य': 'Y', 'र': 'R', 'ल': 'L', 'व': 'V', 'श': 'SH', 'ष': 'SH', 'स': 'S', 'ह': 'H',
+            'ा': 'A', 'ि': 'I', 'ी': 'EE', 'ु': 'U', 'ू': 'OO', 'ृ': 'RI',
+            'े': 'E', 'ै': 'AI', 'ो': 'O', 'ौ': 'AU', 'ं': 'N', 'ँ': 'N', '्': '',
+            '़': '', '।': '.', '॥': '.',
+        }
+        for w in words:
+            word_str = w["word"]
+            if any("\u0900" <= c <= "\u097F" for c in word_str):
+                converted = "".join(d_map.get(c, c) for c in word_str)
+                w["word"] = converted.strip().upper()
+        return words
 
     def transcribe_video_interval(
         self,

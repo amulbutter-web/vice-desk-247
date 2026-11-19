@@ -357,9 +357,21 @@ class FirstTimeLedger:
             ]
 
     def get_next_scheduled_event(self) -> Optional[Dict[str, Any]]:
-        """Pulls the highest-priority SCHEDULED event from the database."""
+        """Pulls the highest-priority SCHEDULED event from the database.
+        Automatically retries high-priority curated events if any transient failures occurred."""
         with get_db_session() as session:
             ev = session.query(FirstTimeEvent).filter_by(status="SCHEDULED").order_by(FirstTimeEvent.priority.desc(), FirstTimeEvent.created_at_utc.asc()).first()
+            if not ev:
+                # Automatic recovery: retry curated events (priority >= 70) that failed due to previous network blocks
+                ev = session.query(FirstTimeEvent).filter(
+                    FirstTimeEvent.status == "FAILED",
+                    FirstTimeEvent.priority >= 70
+                ).order_by(FirstTimeEvent.priority.desc(), FirstTimeEvent.created_at_utc.asc()).first()
+                if ev:
+                    logger.info(f"[FIRST_TIME_LEDGER] Retrying curated event after transient failure: {ev.headline}")
+                    ev.status = "SCHEDULED"
+                    session.flush()
+
             if ev:
                 return {
                     "id": ev.id,

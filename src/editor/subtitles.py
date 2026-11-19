@@ -79,12 +79,12 @@ class SubtitleGenerator:
             "",
             "[V4+ Styles]",
             "Format: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, BackColour, Bold, Italic, Underline, StrikeOut, ScaleX, ScaleY, Spacing, Angle, BorderStyle, Outline, Shadow, Alignment, MarginL, MarginR, MarginV, Encoding",
-            # ViralMain: Clean white base font, bold black border
-            f"Style: ViralMain,Impact,80,&H00FFFFFF,&H0000FFFF,&H00000000,&H80000000,-1,0,0,0,100,100,2,0,1,7,3,2,60,60,420,1",
+            # ViralMain: Clean white base font, bold black border (Arial Black with Impact fallback)
+            f"Style: ViralMain,Arial Black,80,&H00FFFFFF,&H0000FFFF,&H00000000,&H80000000,-1,0,0,0,100,100,2,0,1,7,3,2,60,60,420,1",
             # ViralActive: Golden popped highlight
-            f"Style: ViralActive,Impact,88,{active_color},&H0000FFFF,&H00000000,&H80000000,-1,0,0,0,118,118,2,0,1,8,4,2,60,60,420,1",
+            f"Style: ViralActive,Arial Black,88,{active_color},&H0000FFFF,&H00000000,&H80000000,-1,0,0,0,118,118,2,0,1,8,4,2,60,60,420,1",
             # HookBanner: Prominent top hook banner, high CTR
-            f"Style: HookBanner,Impact,74,&H0000FFFF,&H00FFFFFF,&H00000000,&H80000000,-1,0,0,0,100,100,3,0,1,8,4,8,40,40,240,1",
+            f"Style: HookBanner,Arial Black,74,&H0000FFFF,&H00FFFFFF,&H00000000,&H80000000,-1,0,0,0,100,100,3,0,1,8,4,8,40,40,240,1",
             "",
             "[Events]",
             "Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text",
@@ -117,17 +117,16 @@ class SubtitleGenerator:
                 groups.append(curr_group)
 
             for group in groups:
-                group_end = group[-1]["end_ms"]
-
                 for w_idx, current_word in enumerate(group):
                     w_start_ms = current_word["start_ms"]
                     if w_idx < len(group) - 1:
-                        w_end_ms = group[w_idx + 1]["start_ms"]
+                        next_start = group[w_idx + 1]["start_ms"]
+                        w_end_ms = min(current_word["end_ms"] + 100, next_start)
                     else:
-                        w_end_ms = group_end
+                        w_end_ms = current_word["end_ms"] + 100
 
                     if w_end_ms <= w_start_ms:
-                        w_end_ms = w_start_ms + 100
+                        w_end_ms = w_start_ms + 120
 
                     w_start = self._format_ass_time(w_start_ms)
                     w_end = self._format_ass_time(w_end_ms)

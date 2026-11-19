@@ -96,8 +96,7 @@ class LiveIngestWorker:
                     self.ytdlp_bin,
                     "-f", "bestvideo[height<=1080][ext=mp4]+bestaudio[ext=m4a]/bestvideo[height<=1080]+bestaudio/best[height<=1080]/best",
                     "--download-sections", section_range,
-                    "--extractor-args", "youtube:player_client=default,visionos",
-                    "--user-agent", ua,
+                    "--extractor-args", "youtube:player_client=visionos,android",
                     "--force-overwrites",
                     "--no-playlist",
                     "--no-warnings",
@@ -129,8 +128,7 @@ class LiveIngestWorker:
                     self.ytdlp_bin,
                     "-g",
                     "-f", "bestvideo[height<=1080][ext=mp4]+bestaudio[ext=m4a]/bestvideo[height<=1080]+bestaudio/best[height<=1080]/best",
-                    "--extractor-args", "youtube:player_client=default,visionos",
-                    "--user-agent", ua,
+                    "--extractor-args", "youtube:player_client=visionos,android",
                     "--no-warnings",
                     url,
                 ]
@@ -142,6 +140,10 @@ class LiveIngestWorker:
                         v_url, a_url = stream_urls[0], stream_urls[1]
                         cmd_ff = [
                             self.ffmpeg_bin, "-y",
+                            "-reconnect", "1",
+                            "-reconnect_at_eof", "1",
+                            "-reconnect_streamed", "1",
+                            "-reconnect_delay_max", "5",
                             "-headers", headers,
                             "-ss", start_str,
                             "-i", v_url,
@@ -157,6 +159,10 @@ class LiveIngestWorker:
                         v_url = stream_urls[0]
                         cmd_ff = [
                             self.ffmpeg_bin, "-y",
+                            "-reconnect", "1",
+                            "-reconnect_at_eof", "1",
+                            "-reconnect_streamed", "1",
+                            "-reconnect_delay_max", "5",
                             "-headers", headers,
                             "-ss", start_str,
                             "-i", v_url,
@@ -293,14 +299,31 @@ class LiveIngestWorker:
         ass_sub_path = settings.rendered_dir / f"subs_{trace_id[:8]}.ass"
         fallback_cues = []
         if not words:
+            hi_cues = [
+                "BHAI KYA SCENE HAI! 😂",
+                "5-STAR WANTED LEVEL ESCAPE! 🚨",
+                "SECRET LOCATION MIL GAYI! 🤯",
+                "NEXT LEVEL PHYSICS! 😱",
+                "CHALAN KATEGA BHAI! 🤣",
+                "UNREAL VICE CITY GRAPHICS! ✨",
+            ]
+            en_cues = [
+                "5-STAR POLICE ESCAPE! 🚨",
+                "NEXT-GEN GRAPHICS ARE UNREAL! 🔥",
+                "SECRET LOCATION DISCOVERED! 🤯",
+                "HIGH SPEED PURSUIT! ⚡",
+                "INSANE RAGDOLL PHYSICS! 💀",
+                "VICE CITY IS MASSIVE! 🌴",
+            ]
+            cues_list = hi_cues if lang_hint == "hi" else en_cues
             cut_start = boundaries["window_start_ms"]
-            for cut_t in scene_cuts:
+            for idx, cut_t in enumerate(scene_cuts):
                 if cut_start + 1500 <= cut_t <= boundaries["window_end_ms"] - 1500:
                     rel_ms = cut_t - cut_start
                     fallback_cues.append({
                         "start_ms": rel_ms,
                         "end_ms": rel_ms + 2500,
-                        "text": "NEXT-GEN PHYSICS 🔥" if lang_hint != "hi" else "GTA 6 NEXT LEVEL 🔥",
+                        "text": cues_list[idx % len(cues_list)],
                     })
 
         SubtitleGenerator().generate_ass(
