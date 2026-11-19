@@ -22,6 +22,8 @@ app = FastAPI(
 
 @app.on_event("startup")
 def start_autonomous_daemon():
+    from src.publishing.owner_release import start as start_owner_release
+    start_owner_release()
     # Seed historic First-Time GTA 6 ledger into DB if empty
     try:
         ledger = FirstTimeLedger()
