@@ -633,3 +633,21 @@ async def receive_instagram_webhook(request: Request):
         logger.warning(f"Error parsing webhook JSON: {e}")
         return {"status": "OK"}
 
+
+@router.get("/admin/unstick-ledger")
+@router.post("/admin/unstick-ledger")
+def admin_unstick_ledger():
+    """Marks broken / 403 streams as FAILED to prevent pipeline deadlock."""
+    from src.db.models import FirstTimeEvent
+    with get_db_session() as session:
+        stuck_events = session.query(FirstTimeEvent).filter(
+            FirstTimeEvent.status.in_(["SCHEDULED", "PROCESSING"]),
+            FirstTimeEvent.stream_url.like("%1GtrjKhSwzM%")
+        ).all()
+        count = 0
+        for ev in stuck_events:
+            ev.status = "FAILED"
+            count += 1
+        logger.info(f"[ADMIN] Unstuck {count} events in ledger.")
+        return {"unstuck_count": count, "status": "OK"}
+

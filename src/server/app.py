@@ -24,7 +24,17 @@ app = FastAPI(
 def start_autonomous_daemon():
     # Seed historic First-Time GTA 6 ledger into DB if empty
     try:
-        FirstTimeLedger().seed_initial_catalog()
+        ledger = FirstTimeLedger()
+        ledger.seed_initial_catalog()
+        # Unstick any blocked / 403 events
+        from src.db.database import get_db_session
+        from src.db.models import FirstTimeEvent
+        with get_db_session() as session:
+            stuck = session.query(FirstTimeEvent).filter(
+                FirstTimeEvent.stream_url.like("%1GtrjKhSwzM%")
+            ).all()
+            for s in stuck:
+                s.status = "FAILED"
     except Exception as e:
         print(f"Ledger seeding note: {e}")
 

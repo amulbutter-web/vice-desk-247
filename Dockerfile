@@ -11,13 +11,14 @@ ENV PYTHONUNBUFFERED=1 \
 
 WORKDIR /app
 
-# Install system dependencies: FFmpeg, FFprobe, and high-quality fonts for ASS subtitles
+# Install system dependencies: FFmpeg, FFprobe, Node.js (for yt-dlp JS runtime), and fonts for ASS subtitles
 RUN apt-get update && apt-get install -y --no-install-recommends \
     ffmpeg \
     fonts-liberation \
     fonts-dejavu-core \
     fontconfig \
     curl \
+    nodejs \
     && fc-cache -f -v \
     && rm -rf /var/lib/apt/lists/*
 

@@ -158,8 +158,10 @@ class AutonomousPublisherDaemon:
             if self.scavenge_counter % 15 == 0:
                 self._cleanup_temp_disk_space()
 
-            # Alternate between Scheduled Historic 'First-Time' events and live hotspot scouting
-            next_first_time = self.ledger.get_next_scheduled_event()
+            # Alternate between Scheduled Historic 'First-Time' events and live continuous streams
+            next_first_time = None
+            if self.scavenge_counter % 2 == 0:
+                next_first_time = self.ledger.get_next_scheduled_event()
             current_first_time_id = None
 
             if next_first_time:
@@ -232,19 +234,25 @@ class AutonomousPublisherDaemon:
                 if not video_path or not Path(video_path).exists():
                     logger.warning("[DAEMON] No rendered output for %s — skipping social publish", creator)
                     self.consecutive_errors += 1
-                    time.sleep(120)
+                    if current_first_time_id:
+                        self.ledger.update_event_status(current_first_time_id, "FAILED", None)
+                    time.sleep(60)
                     continue
 
                 v_file = Path(video_path)
                 # Hard quality gate: Must be genuine high-res render > 1.5MB and cannot be dummy sample footage
                 if v_file.stat().st_size < 1_500_000:
                     logger.warning("[DAEMON] Rendered video for %s is under 1.5MB (%d bytes). Skipping social publish.", creator, v_file.stat().st_size)
-                    time.sleep(120)
+                    if current_first_time_id:
+                        self.ledger.update_event_status(current_first_time_id, "FAILED", None)
+                    time.sleep(60)
                     continue
 
                 if any(bad in v_file.name.lower() for bad in ["sample", "synth", "0ddc3702"]):
                     logger.error("[DAEMON] HARD QUALITY BLOCK: Attempted to publish dummy/fallback video %s for %s! Aborting publish.", v_file.name, creator)
-                    time.sleep(120)
+                    if current_first_time_id:
+                        self.ledger.update_event_status(current_first_time_id, "FAILED", None)
+                    time.sleep(60)
                     continue
 
                 self.consecutive_errors = 0
@@ -320,6 +328,8 @@ class AutonomousPublisherDaemon:
 
             except Exception as e:
                 logger.error("[DAEMON] Cycle error on %s: %s", creator, e, exc_info=True)
+                if current_first_time_id:
+                    self.ledger.update_event_status(current_first_time_id, "FAILED", None)
                 self.consecutive_errors += 1
 
             logger.info(
