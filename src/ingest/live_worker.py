@@ -362,6 +362,16 @@ class LiveIngestWorker:
         )
 
         # 8. Editorial Planning
+        # If source media is a pre-sliced segment (duration < boundaries["window_end_ms"]),
+        # normalize edit plan boundaries to start from 0 to prevent FFmpeg seeking past EOF
+        local_dur_ms = source_meta.get("duration_ms", 0)
+        render_boundaries = dict(boundaries)
+        if local_dur_ms > 0 and (boundaries.get("window_start_ms", 0) >= local_dur_ms or boundaries.get("window_end_ms", 0) > local_dur_ms):
+            logger.info(f"Normalizing pre-sliced stream sample: duration {local_dur_ms}ms (mapping start from 0ms)")
+            orig_span = max(15000, boundaries.get("window_end_ms", 60000) - boundaries.get("window_start_ms", 0))
+            render_boundaries["window_start_ms"] = 0
+            render_boundaries["window_end_ms"] = min(local_dur_ms, orig_span)
+
         planner = EditorialPlanner(canvas_width=1080, canvas_height=1920, fps=60.0)
         plan_id = f"plan-{uuid.uuid4().hex[:8]}"
         edit_plan = planner.create_edit_plan(
@@ -369,7 +379,7 @@ class LiveIngestWorker:
             trace_id=trace_id,
             event_revision_id="rev-1",
             media_asset_id=f"asset-{sha256[:8]}",
-            event_candidate=boundaries,
+            event_candidate=render_boundaries,
             platform="instagram",
             layout_mode=layout_mode,
         )

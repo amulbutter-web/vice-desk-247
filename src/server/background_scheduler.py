@@ -392,6 +392,8 @@ class AutonomousPublisherDaemon:
                 if current_first_time_id:
                     self.ledger.update_event_status(current_first_time_id, "FAILED", None)
                 self.consecutive_errors += 1
+                time.sleep(5)
+                continue
 
             logger.info(
                 "[DAEMON] Cycle done. YT published: %d | IG published: %d | Sleeping %ds",
@@ -483,5 +485,5 @@ class AutonomousPublisherDaemon:
 
 
 # Global singleton — started by app.py on_event("startup")
-daemon_interval = int(os.environ.get("DAEMON_INTERVAL_SEC", "1200"))
+daemon_interval = int(os.environ.get("DAEMON_INTERVAL_SEC", "120"))
 daemon_instance = AutonomousPublisherDaemon(interval_sec=daemon_interval)
