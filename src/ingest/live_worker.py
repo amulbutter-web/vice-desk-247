@@ -364,7 +364,7 @@ class LiveIngestWorker:
         # 8. Editorial Planning
         # If source media is a pre-sliced segment (duration < boundaries["window_end_ms"]),
         # normalize edit plan boundaries to start from 0 to prevent FFmpeg seeking past EOF
-        local_dur_ms = source_meta.get("duration_ms", 0)
+        local_dur_ms = meta.get("duration_ms", 0) if isinstance(meta, dict) else 0
         render_boundaries = dict(boundaries)
         if local_dur_ms > 0 and (boundaries.get("window_start_ms", 0) >= local_dur_ms or boundaries.get("window_end_ms", 0) > local_dur_ms):
             logger.info(f"Normalizing pre-sliced stream sample: duration {local_dur_ms}ms (mapping start from 0ms)")
