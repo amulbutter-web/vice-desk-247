@@ -128,7 +128,7 @@ class LiveIngestWorker:
                     "-o", str(target_file),
                 ] + auth_args + [url]
                 res_nat = subprocess.run(cmd_native, capture_output=True, text=True, timeout=180)
-                if res_nat.returncode == 0 and target_file.exists() and target_file.stat().st_size > 500_000:
+                if res_nat.returncode == 0 and target_file.exists() and target_file.stat().st_size > 50_000:
                     try:
                         probe_check = self.probe.probe(str(target_file))
                         if probe_check.get("has_video"):

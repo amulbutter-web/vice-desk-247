@@ -309,9 +309,9 @@ class AutonomousPublisherDaemon:
                 self.consecutive_errors = 0
                 logger.info("[DAEMON] Rendered %s for %s | Hook: %s", render_id, creator, hook)
 
-                # ── Step 2: YouTube Shorts Upload (HELD ON USER DIRECTIVE) ──
+                # ── Step 2: YouTube Shorts Upload ──
                 destinations = []
-                enable_yt = os.getenv("ENABLE_YOUTUBE_UPLOADS", "false").lower() in ("true", "1")
+                enable_yt = os.getenv("ENABLE_YOUTUBE_UPLOADS", "true").lower() in ("true", "1")
                 if enable_yt and not self.daily_quota_hit:
                     try:
                         yt_title = res["title"]
