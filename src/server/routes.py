@@ -1,6 +1,7 @@
 """
 REST API Routes for Operator Management, Ingest, Review, and Outbox.
 """
+import re
 import uuid
 import os
 import time
@@ -610,12 +611,10 @@ def verify_instagram_webhook(
     Meta / Instagram Webhook Verification Handshake.
     Responds to Meta GET request with hub.challenge when token matches.
     """
-    expected_token = os.environ.get("META_VERIFY_TOKEN", "vicedesk_meta_verify_2026")
-    logger.info(f"Instagram Webhook Verification: mode={hub_mode}, token={hub_verify_token}")
-    if hub_mode == "subscribe" and hub_verify_token == expected_token:
+    expected_token = os.environ.get("META_VERIFY_TOKEN")
+    if expected_token and hub_mode == "subscribe" and hub_verify_token == expected_token:
         logger.info(f"Instagram Webhook verified successfully! Returning challenge: {hub_challenge}")
         return PlainTextResponse(content=hub_challenge or "", status_code=200)
-    logger.warning(f"Webhook verification failed. Expected '{expected_token}', got '{hub_verify_token}'")
     raise HTTPException(status_code=403, detail="Verification token mismatch")
 
 
@@ -627,7 +626,6 @@ async def receive_instagram_webhook(request: Request):
     """
     try:
         payload = await request.json()
-        logger.info(f"Received Instagram Webhook Event: {payload}")
         return {"status": "EVENT_RECEIVED"}
     except Exception as e:
         logger.warning(f"Error parsing webhook JSON: {e}")
@@ -657,6 +655,8 @@ async def upload_media_file(request: Request, filename: str = Query(...)):
     """Uploads raw binary stream directly without python-multipart dependency."""
     rendered_dir = Path(__file__).resolve().parent.parent.parent / "data" / "rendered"
     rendered_dir.mkdir(parents=True, exist_ok=True)
+    if not re.fullmatch(r"[A-Za-z0-9_-][A-Za-z0-9_.-]{0,190}\.mp4", filename, re.IGNORECASE):
+        raise HTTPException(status_code=400, detail="Invalid MP4 filename")
     target_path = rendered_dir / filename
     with target_path.open("wb") as f:
         async for chunk in request.stream():

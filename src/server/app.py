@@ -2,6 +2,9 @@
 FastAPI Application Entrypoint for Operator Web Dashboard and REST API.
 """
 import os
+import base64
+import secrets
+from urllib.parse import urlsplit
 from fastapi import FastAPI, Query, Request, HTTPException
 from fastapi.responses import PlainTextResponse, FileResponse
 from fastapi.staticfiles import StaticFiles
@@ -58,6 +61,32 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+PUBLIC_PAGES = {"/privacy", "/privacy-policy", "/terms", "/terms-of-service", "/data-deletion",
+                "/deletion", "/app_icon.png", "/icon.png", "/api/health"}
+WEBHOOK_PATHS = {prefix + path for prefix in ("", "/api")
+                 for path in ("/webhooks/instagram", "/webhook/instagram")}
+
+
+@app.middleware("http")
+async def require_operator(request: Request, call_next):
+    path = request.url.path
+    if path in WEBHOOK_PATHS or (
+        request.method in {"GET", "HEAD"} and (path in PUBLIC_PAGES or path.startswith("/media/"))
+    ):
+        return await call_next(request)
+    password = os.environ.get("VICE_OPERATOR_PASSWORD")
+    if not password:
+        return PlainTextResponse("Operator login is not configured", status_code=503)
+    expected = b"Basic " + base64.b64encode(("owner:" + password).encode())
+    if not secrets.compare_digest(request.headers.get("authorization", "").encode(), expected):
+        return PlainTextResponse("Operator login required", status_code=401,
+                                 headers={"WWW-Authenticate": 'Basic realm="Vice Desk"'})
+    origin = request.headers.get("origin")
+    if origin and urlsplit(origin).netloc != request.url.netloc:
+        return PlainTextResponse("Cross-origin request rejected", status_code=403)
+    return await call_next(request)
+
+
 # Initialize Database Schema
 init_db()
 
@@ -73,8 +102,8 @@ def root_verify_instagram_webhook(
     hub_verify_token: str = Query(None, alias="hub.verify_token"),
     hub_challenge: str = Query(None, alias="hub.challenge"),
 ):
-    expected_token = os.environ.get("META_VERIFY_TOKEN", "vicedesk_meta_verify_2026")
-    if hub_mode == "subscribe" and hub_verify_token == expected_token:
+    expected_token = os.environ.get("META_VERIFY_TOKEN")
+    if expected_token and hub_mode == "subscribe" and hub_verify_token == expected_token:
         return PlainTextResponse(content=hub_challenge or "", status_code=200)
     raise HTTPException(status_code=403, detail="Verification token mismatch")
 

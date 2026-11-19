@@ -30,7 +30,7 @@ def run():
         if not ig.dry_run:
             for item in ig.get_recent_reels(limit=12):
                 if item.get("media_type")=="VIDEO" and re.fullmatch(r"https://(?:www\.)?instagram\.com/(?:reel|p)/[\w-]+/?",item.get("permalink","")):
-                    log.info("OWNER_RECEIPT Instagram %s %s",item.get("timestamp"),item["permalink"])
+                    log.info("OWNER_RECEIPT Instagram %s %s %s",item.get("id"),item.get("timestamp"),item["permalink"])
     except Exception as exc:
         log.warning("OWNER_RECEIPT Instagram lookup %s",type(exc).__name__)
     try:
