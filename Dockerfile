@@ -19,6 +19,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     fontconfig \
     curl \
     nodejs \
+    && (which node || ln -s $(which nodejs) /usr/local/bin/node) \
     && fc-cache -f -v \
     && rm -rf /var/lib/apt/lists/*
 
