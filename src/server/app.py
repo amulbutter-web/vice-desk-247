@@ -198,6 +198,17 @@ def get_supervisor_directive():
 def diag_ytdlp(url: str = "https://www.youtube.com/watch?v=u1OGXGfOEI0"):
     import subprocess, shutil
     ytdlp = shutil.which("yt-dlp") or "yt-dlp"
+    
+    # Ensure cookie file is written from env if present
+    cookie_path = Path("/tmp/youtube_cookies.txt")
+    b64_env = os.getenv("YOUTUBE_COOKIES_BASE64")
+    if b64_env and (not cookie_path.exists() or cookie_path.stat().st_size == 0):
+        try:
+            cookie_path.write_bytes(base64.b64decode(b64_env))
+            cookie_path.chmod(0o600)
+        except Exception as e:
+            pass
+
     cmd = [
         ytdlp,
         "-v",
@@ -205,11 +216,18 @@ def diag_ytdlp(url: str = "https://www.youtube.com/watch?v=u1OGXGfOEI0"):
         "--extractor-args", "youtubepot-bgutilcli:cli_path=/usr/local/bin/bgutil-pot",
         "--extractor-args", "youtube:player_client=web,mweb,android",
         "--skip-download",
-        url
     ]
+    if cookie_path.exists() and cookie_path.stat().st_size > 0:
+        cmd.extend(["--cookies", str(cookie_path)])
+
+    cmd.append(url)
     res = subprocess.run(cmd, capture_output=True, text=True, timeout=25)
     return {
         "returncode": res.returncode,
+        "cookie_file_exists": cookie_path.exists(),
+        "cookie_file_size": cookie_path.stat().st_size if cookie_path.exists() else 0,
+        "env_var_present": bool(b64_env),
+        "env_var_len": len(b64_env) if b64_env else 0,
         "stdout": res.stdout,
         "stderr": res.stderr,
     }

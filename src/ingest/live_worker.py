@@ -91,9 +91,18 @@ class LiveIngestWorker:
         # Build resilient yt-dlp authentication & POT bypass arguments
         auth_args = []
         cookies_cand = Path("/tmp/youtube_cookies.txt")
+        b64_env = os.getenv("YOUTUBE_COOKIES_BASE64")
+        if b64_env and (not cookies_cand.exists() or cookies_cand.stat().st_size == 0):
+            try:
+                import base64
+                cookies_cand.write_bytes(base64.b64decode(b64_env))
+                cookies_cand.chmod(0o600)
+            except Exception as _ce:
+                logger.warning(f"Failed to decode YOUTUBE_COOKIES_BASE64: {_ce}")
+
         if not cookies_cand.exists() and Path("data/youtube_cookies.txt").exists():
             cookies_cand = Path("data/youtube_cookies.txt")
-        if cookies_cand.exists():
+        if cookies_cand.exists() and cookies_cand.stat().st_size > 0:
             auth_args.extend(["--cookies", str(cookies_cand)])
 
         proxy_cand = os.getenv("YOUTUBE_PROXY") or os.getenv("HTTP_PROXY") or os.getenv("HTTPS_PROXY")

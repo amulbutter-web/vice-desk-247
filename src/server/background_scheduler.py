@@ -309,9 +309,10 @@ class AutonomousPublisherDaemon:
                 self.consecutive_errors = 0
                 logger.info("[DAEMON] Rendered %s for %s | Hook: %s", render_id, creator, hook)
 
-                # ── Step 2: YouTube Shorts Upload ──
+                # ── Step 2: YouTube Shorts Upload (HELD ON USER DIRECTIVE) ──
                 destinations = []
-                if not self.daily_quota_hit:
+                enable_yt = os.getenv("ENABLE_YOUTUBE_UPLOADS", "false").lower() in ("true", "1")
+                if enable_yt and not self.daily_quota_hit:
                     try:
                         yt_title = res["title"]
                         yt_desc = f"{res['caption']}\n\nStream: {url}"
@@ -334,6 +335,8 @@ class AutonomousPublisherDaemon:
                         else:
                             logger.warning("[DAEMON] YouTube publish error: %s", err[:200])
                 else:
+                    if not enable_yt:
+                        logger.debug("[DAEMON] YouTube uploads held by user directive. Instagram exclusive.")
                     # Reset quota flag at midnight UTC (quota resets every 24h)
                     from datetime import datetime, timezone
                     if datetime.now(timezone.utc).hour == 0:
