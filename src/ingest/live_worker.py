@@ -95,8 +95,8 @@ class LiveIngestWorker:
                 cmd_native = [
                     self.ytdlp_bin,
                     "-4",
-                    "--extractor-args", "youtube:player_client=android,ios,mweb",
-                    "-f", "bestvideo[height<=1080]+bestaudio/best[height<=1080]/best",
+                    "--extractor-args", "youtube:player_client=android;player_skip=web,configs",
+                    "-f", "best[height<=1080]/bestvideo[height<=1080]+bestaudio/best",
                     "--download-sections", section_range,
                     "--js-runtimes", "deno,node",
                     "--force-overwrites",
@@ -129,9 +129,9 @@ class LiveIngestWorker:
                 cmd_g = [
                     self.ytdlp_bin,
                     "-4",
-                    "--extractor-args", "youtube:player_client=android,ios,mweb",
+                    "--extractor-args", "youtube:player_client=android;player_skip=web,configs",
                     "-g",
-                    "-f", "bestvideo[height<=1080]+bestaudio/best[height<=1080]/best",
+                    "-f", "best[height<=1080]/bestvideo[height<=1080]+bestaudio/best",
                     "--js-runtimes", "deno,node",
                     "--no-warnings",
                     url,
