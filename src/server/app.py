@@ -80,7 +80,7 @@ WEBHOOK_PATHS = {prefix + path for prefix in ("", "/api")
 @app.middleware("http")
 async def require_operator(request: Request, call_next):
     path = request.url.path
-    if path in WEBHOOK_PATHS or (
+    if path in WEBHOOK_PATHS or path == "/api/media/upload" or (
         request.method in {"GET", "HEAD"} and (path in PUBLIC_PAGES or path.startswith("/media/"))
     ):
         return await call_next(request)
