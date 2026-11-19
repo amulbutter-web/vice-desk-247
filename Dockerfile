@@ -11,15 +11,17 @@ ENV PYTHONUNBUFFERED=1 \
 
 WORKDIR /app
 
-# Install system dependencies: FFmpeg, FFprobe, Node.js (for yt-dlp JS runtime), and fonts for ASS subtitles
+# Install system dependencies: FFmpeg, FFprobe, Node.js + Deno (for yt-dlp JS runtime), and fonts for ASS subtitles
 RUN apt-get update && apt-get install -y --no-install-recommends \
     ffmpeg \
     fonts-liberation \
     fonts-dejavu-core \
     fontconfig \
     curl \
+    unzip \
     nodejs \
     && (which node || ln -s $(which nodejs) /usr/local/bin/node) \
+    && (curl -fsSL https://deno.land/install.sh | sh && ln -s /root/.deno/bin/deno /usr/local/bin/deno || true) \
     && fc-cache -f -v \
     && rm -rf /var/lib/apt/lists/*
 
@@ -36,7 +38,8 @@ RUN pip install --no-cache-dir \
     sqlalchemy>=2.0.0 \
     jsonschema>=4.20.0 \
     click>=8.0.0 \
-    yt-dlp \
+    "yt-dlp[default]" \
+    yt-dlp-ejs>=0.8.0 \
     starlette==0.41.3 \
     pytest==8.4.2 \
     pytest-asyncio==0.26.0

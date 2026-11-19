@@ -94,10 +94,10 @@ class LiveIngestWorker:
                 logger.info(f"Downloading stream footage [{section_range}] via yt-dlp: {url}...")
                 cmd_native = [
                     self.ytdlp_bin,
-                    "-f", "bestvideo[height<=1080][ext=mp4]+bestaudio[ext=m4a]/bestvideo[height<=1080]+bestaudio/best[height<=1080]/best",
+                    "-4",
+                    "-f", "bestvideo[height<=1080]+bestaudio/best[height<=1080]/best",
                     "--download-sections", section_range,
-                    "--js-runtimes", "node",
-                    "--extractor-args", "youtube:player_client=visionos,android",
+                    "--js-runtimes", "deno,node",
                     "--force-overwrites",
                     "--no-playlist",
                     "--no-warnings",
@@ -118,7 +118,7 @@ class LiveIngestWorker:
                         logger.warning(f"Native yt-dlp probe error: {p_err}")
                         target_file.unlink(missing_ok=True)
                 else:
-                    logger.warning(f"Native yt-dlp returned code {res_nat.returncode}: {res_nat.stderr[-200:] if res_nat.stderr else ''}")
+                    logger.warning(f"Native yt-dlp returned code {res_nat.returncode}: {res_nat.stderr[-500:] if res_nat.stderr else ''}")
             except Exception as en:
                 logger.warning(f"Native yt-dlp slice error: {en}")
 
@@ -127,10 +127,10 @@ class LiveIngestWorker:
                 logger.info(f"Fallback: Extracting live stream URLs for {url} [{start_str} +{duration_sec}s]...")
                 cmd_g = [
                     self.ytdlp_bin,
+                    "-4",
                     "-g",
-                    "-f", "bestvideo[height<=1080][ext=mp4]+bestaudio[ext=m4a]/bestvideo[height<=1080]+bestaudio/best[height<=1080]/best",
-                    "--js-runtimes", "node",
-                    "--extractor-args", "youtube:player_client=visionos,android",
+                    "-f", "bestvideo[height<=1080]+bestaudio/best[height<=1080]/best",
+                    "--js-runtimes", "deno,node",
                     "--no-warnings",
                     url,
                 ]

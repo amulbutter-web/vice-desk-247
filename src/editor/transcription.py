@@ -175,12 +175,16 @@ class GroqTranscriptionEngine:
             return words
         try:
             from src.core.groq_pool import GroqPool
+            import re
             pool = GroqPool(self.keys)
             raw_list = [w["word"] for w in words]
             prompt = (
                 "You are an elite subtitle transliterator for Indian gaming Reels (CarryMinati, Mythpat).\n"
-                "Transliterate the following list of spoken Hindi words into high-energy Roman Hinglish "
-                "(uppercase, exact 1:1 word count and order, preserving punctuation).\n"
+                "Transliterate the following list of spoken Hindi words into high-energy Roman Hinglish.\n"
+                "STRICT RULES:\n"
+                "1. Convert EVERY Hindi/Devanagari word into uppercase Roman Hinglish (e.g. 'BHAI', 'STRIP CLUB', 'POLICE', 'BHAGO').\n"
+                "2. Output MUST be 100% standard English ASCII characters (A-Z, 0-9). NEVER output any Devanagari characters or unicode accents.\n"
+                "3. Preserve EXACT 1:1 word count and array order matching the input array.\n"
                 f"Input words: {json.dumps(raw_list, ensure_ascii=False)}\n"
                 "Return ONLY a valid JSON array of strings in UPPERCASE, nothing else."
             )
@@ -190,20 +194,24 @@ class GroqTranscriptionEngine:
                 max_tokens=len(words) * 6 + 100,
                 temperature=0.1,
             )
-            import re
             m = re.search(r"\[.*\]", ans, re.DOTALL)
             if m:
                 transliterated = json.loads(m.group(0))
                 if len(transliterated) == len(words):
                     for i, tw in enumerate(transliterated):
-                        words[i]["word"] = str(tw).strip().upper()
+                        clean_w = re.sub(r"[^\x00-\x7F]+", "", str(tw)).strip().upper()
+                        words[i]["word"] = clean_w if clean_w else words[i]["word"]
                     logger.info("[TRANSCRIPTION] Successfully transliterated %d words to Roman Hinglish", len(words))
                     return words
         except Exception as e:
             logger.warning("[TRANSCRIPTION] Groq Hinglish transliteration note: %s", e)
 
         # Fallback rule-based transliterator to ensure zero raw Devanagari in ASS
-        return self._fallback_transliterate(words)
+        res = self._fallback_transliterate(words)
+        import re
+        for w in res:
+            w["word"] = re.sub(r"[^\x00-\x7F]+", "", w["word"]).strip().upper()
+        return res
 
     @staticmethod
     def _fallback_transliterate(words: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
@@ -220,6 +228,7 @@ class GroqTranscriptionEngine:
             'ा': 'A', 'ि': 'I', 'ी': 'EE', 'ु': 'U', 'ू': 'OO', 'ृ': 'RI',
             'े': 'E', 'ै': 'AI', 'ो': 'O', 'ौ': 'AU', 'ं': 'N', 'ँ': 'N', '्': '',
             '़': '', '।': '.', '॥': '.',
+            'ड़': 'R', 'ड़': 'R', 'ढ़': 'RH', 'फ़': 'F', 'ज़': 'Z', 'ख़': 'KH', 'ग़': 'GH', 'क़': 'Q',
         }
         for w in words:
             word_str = w["word"]

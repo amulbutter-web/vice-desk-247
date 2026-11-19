@@ -79,12 +79,12 @@ class SubtitleGenerator:
             "",
             "[V4+ Styles]",
             "Format: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, BackColour, Bold, Italic, Underline, StrikeOut, ScaleX, ScaleY, Spacing, Angle, BorderStyle, Outline, Shadow, Alignment, MarginL, MarginR, MarginV, Encoding",
-            # ViralMain: Clean white base font, bold black border (Arial Black with Impact fallback)
-            f"Style: ViralMain,Arial Black,80,&H00FFFFFF,&H0000FFFF,&H00000000,&H80000000,-1,0,0,0,100,100,2,0,1,7,3,2,60,60,420,1",
+            # ViralMain: Clean white base font, bold black border
+            f"Style: ViralMain,DejaVu Sans,Arial Black,80,&H00FFFFFF,&H0000FFFF,&H00000000,&H80000000,-1,0,0,0,100,100,2,0,1,7,3,2,60,60,420,1",
             # ViralActive: Golden popped highlight
-            f"Style: ViralActive,Arial Black,88,{active_color},&H0000FFFF,&H00000000,&H80000000,-1,0,0,0,118,118,2,0,1,8,4,2,60,60,420,1",
+            f"Style: ViralActive,DejaVu Sans,Arial Black,88,{active_color},&H0000FFFF,&H00000000,&H80000000,-1,0,0,0,118,118,2,0,1,8,4,2,60,60,420,1",
             # HookBanner: Prominent top hook banner, high CTR
-            f"Style: HookBanner,Arial Black,74,&H0000FFFF,&H00FFFFFF,&H00000000,&H80000000,-1,0,0,0,100,100,3,0,1,8,4,8,40,40,240,1",
+            f"Style: HookBanner,DejaVu Sans,Arial Black,74,&H0000FFFF,&H00FFFFFF,&H00000000,&H80000000,-1,0,0,0,100,100,3,0,1,8,4,8,40,40,240,1",
             "",
             "[Events]",
             "Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text",
@@ -116,14 +116,17 @@ class SubtitleGenerator:
             if curr_group:
                 groups.append(curr_group)
 
-            for group in groups:
+            for g_idx, group in enumerate(groups):
+                next_group_start = groups[g_idx + 1][0]["start_ms"] if g_idx < len(groups) - 1 else None
                 for w_idx, current_word in enumerate(group):
                     w_start_ms = current_word["start_ms"]
                     if w_idx < len(group) - 1:
-                        next_start = group[w_idx + 1]["start_ms"]
-                        w_end_ms = min(current_word["end_ms"] + 100, next_start)
+                        # Seamless transition to next word in group — zero blackout/flicker
+                        w_end_ms = group[w_idx + 1]["start_ms"]
                     else:
-                        w_end_ms = current_word["end_ms"] + 100
+                        # Last word stays visible for reading grace (350ms) or until next group begins
+                        target_end = current_word["end_ms"] + 350
+                        w_end_ms = min(target_end, next_group_start) if next_group_start else target_end
 
                     if w_end_ms <= w_start_ms:
                         w_end_ms = w_start_ms + 120
@@ -133,7 +136,7 @@ class SubtitleGenerator:
 
                     rendered_parts = []
                     for idx, w in enumerate(group):
-                        word_str = w["word"].strip().upper()
+                        word_str = w["word"].strip().upper().replace("{", "").replace("}", "").replace("\\", "")
                         if idx == w_idx:
                             rendered_parts.append(f"{{\\c{active_color}\\fscx112\\fscy112}}{word_str}{{\\r}}")
                         else:
