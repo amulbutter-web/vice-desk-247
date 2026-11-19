@@ -185,8 +185,8 @@ class AutonomousPublisherDaemon:
                 continue
 
             if self.consecutive_errors >= self.MAX_ERRORS:
-                logger.error("[DAEMON] %d consecutive errors — sleeping 10 min", self.MAX_ERRORS)
-                time.sleep(600)
+                logger.warning("[DAEMON] %d consecutive errors — brief 15s recovery cooldown", self.MAX_ERRORS)
+                time.sleep(15)
                 self.consecutive_errors = 0
 
             # 6-Month Autonomous Scavenger: Replenish queue with fresh YouTube discoveries

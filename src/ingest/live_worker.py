@@ -167,6 +167,7 @@ class LiveIngestWorker:
                         v_url, a_url = stream_urls[0], stream_urls[1]
                         cmd_ff = [
                             self.ffmpeg_bin, "-y",
+                            "-threads", "2",
                             "-reconnect", "1",
                             "-reconnect_at_eof", "1",
                             "-reconnect_streamed", "1",
@@ -186,6 +187,7 @@ class LiveIngestWorker:
                         v_url = stream_urls[0]
                         cmd_ff = [
                             self.ffmpeg_bin, "-y",
+                            "-threads", "2",
                             "-reconnect", "1",
                             "-reconnect_at_eof", "1",
                             "-reconnect_streamed", "1",

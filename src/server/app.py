@@ -56,11 +56,15 @@ def start_autonomous_daemon():
         daemon_instance.start()
         supervisor_instance.start()
         supervisor_instance.send_startup_notification()
+        from src.supervisor.hierarchy import chief_supervisor_instance
+        chief_supervisor_instance.start()
 
 @app.on_event("shutdown")
 def stop_autonomous_daemon():
     daemon_instance.stop()
     supervisor_instance.stop()
+    from src.supervisor.hierarchy import chief_supervisor_instance
+    chief_supervisor_instance.stop()
 
 app.add_middleware(
     CORSMiddleware,
@@ -72,7 +76,8 @@ app.add_middleware(
 
 PUBLIC_PAGES = {"/privacy", "/privacy-policy", "/terms", "/terms-of-service", "/data-deletion",
                 "/deletion", "/app_icon.png", "/icon.png", "/api/health",
-                "/api/daemon/status", "/api/accounts/instagram/status", "/api/supervisor/directive", "/api/diag/ytdlp"}
+                "/api/daemon/status", "/api/accounts/instagram/status", "/api/supervisor/directive", "/api/diag/ytdlp",
+                "/api/supervisor/hierarchy"}
 WEBHOOK_PATHS = {prefix + path for prefix in ("", "/api")
                  for path in ("/webhooks/instagram", "/webhook/instagram")}
 
@@ -192,6 +197,12 @@ def get_supervisor_directive():
             "stall_cycles": supervisor_instance.stall_cycles,
         }
     }
+
+
+@app.get("/api/supervisor/hierarchy")
+def get_supervisor_hierarchy():
+    from src.supervisor.hierarchy import chief_supervisor_instance
+    return chief_supervisor_instance.get_hierarchy_telemetry()
 
 
 @app.get("/api/diag/ytdlp")

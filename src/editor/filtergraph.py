@@ -101,6 +101,7 @@ class FiltergraphGenerator:
         cmd = [
             ffmpeg_bin,
             "-y",  # Overwrite output
+            "-threads", "2",  # Restrict threads to prevent cloud container OOM SIGKILL
             "-ss", f"{start_sec:.3f}",
             "-t", f"{duration_sec:.3f}",
             "-i", source_path,

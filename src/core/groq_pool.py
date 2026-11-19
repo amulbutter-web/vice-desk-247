@@ -105,7 +105,10 @@ class GroqPool:
                 try:
                     with urllib.request.urlopen(req, timeout=8) as resp:
                         data = json.loads(resp.read().decode("utf-8"))
-                        content = data["choices"][0]["message"]["content"].strip()
+                        msg = data["choices"][0]["message"]
+                        content = (msg.get("content") or "").strip()
+                        if not content and "reasoning" in msg:
+                            content = (msg.get("reasoning") or "").strip()
                         if content:
                             return content
                 except Exception as e:
