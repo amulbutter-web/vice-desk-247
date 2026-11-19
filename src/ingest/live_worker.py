@@ -74,6 +74,12 @@ class LiveIngestWorker:
             start_str = clean
             duration_sec = 65
 
+        from src.ingest.owner_archive import archive_excerpt
+        archived = archive_excerpt(url, start_str, duration_sec, output_dir, self.ffmpeg_bin)
+        if archived is not None:
+            logger.info("[INGEST] Using matching operator-supplied original for requested interval")
+            return archived
+
         target_file = output_dir / f"stream_{uuid.uuid4().hex[:8]}.mp4"
         ua = (
             "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
