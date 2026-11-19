@@ -128,14 +128,14 @@ class LiveIngestWorker:
                     "-o", str(target_file),
                 ] + auth_args + [url]
                 res_nat = subprocess.run(cmd_native, capture_output=True, text=True, timeout=180)
-                if res_nat.returncode == 0 and target_file.exists() and target_file.stat().st_size > 50_000:
+                if res_nat.returncode == 0 and target_file.exists() and target_file.stat().st_size > 500_000:
                     try:
                         probe_check = self.probe.probe(str(target_file))
-                        if probe_check.get("has_video"):
+                        if probe_check.get("has_video") and probe_check.get("duration_ms", 0) > 10_000:
                             logger.info(f"Native yt-dlp captured verified footage: {target_file} ({target_file.stat().st_size / (1024*1024):.2f} MB)")
                             return target_file
                         else:
-                            logger.warning("Native yt-dlp file has no video stream — trying fallback")
+                            logger.warning(f"Native yt-dlp file invalid/too short ({probe_check.get('duration_ms', 0)}ms) — trying fallback")
                             target_file.unlink(missing_ok=True)
                     except Exception as p_err:
                         logger.warning(f"Native yt-dlp probe error: {p_err}")
@@ -204,7 +204,7 @@ class LiveIngestWorker:
                     if res_ff.returncode == 0 and target_file.exists() and target_file.stat().st_size > 500_000:
                         try:
                             probe_check = self.probe.probe(str(target_file))
-                            if probe_check.get("has_video"):
+                            if probe_check.get("has_video") and probe_check.get("duration_ms", 0) > 10_000:
                                 logger.info(f"Fallback stream footage verified: {target_file} ({target_file.stat().st_size / (1024*1024):.2f} MB)")
                                 return target_file
                             else:
