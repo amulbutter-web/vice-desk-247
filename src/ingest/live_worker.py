@@ -95,6 +95,7 @@ class LiveIngestWorker:
                 cmd_native = [
                     self.ytdlp_bin,
                     "-4",
+                    "--extractor-args", "youtube:player_client=android,ios,mweb",
                     "-f", "bestvideo[height<=1080]+bestaudio/best[height<=1080]/best",
                     "--download-sections", section_range,
                     "--js-runtimes", "deno,node",
@@ -128,6 +129,7 @@ class LiveIngestWorker:
                 cmd_g = [
                     self.ytdlp_bin,
                     "-4",
+                    "--extractor-args", "youtube:player_client=android,ios,mweb",
                     "-g",
                     "-f", "bestvideo[height<=1080]+bestaudio/best[height<=1080]/best",
                     "--js-runtimes", "deno,node",
@@ -358,8 +360,10 @@ class LiveIngestWorker:
             output_path=str(output_mp4_path),
             edit_plan=edit_plan,
             ass_subtitle_path=str(ass_sub_path) if ass_sub_path.exists() else None,
-            timeout_sec=180,
+            timeout_sec=420,
         )
+        if ass_sub_path.exists():
+            ass_sub_path.unlink(missing_ok=True)
 
         # 10. Automated QC Hard Gates & Supervisor
         hard_gates = HardQualityGates(probe=self.probe, visual_detector=visual_det)
@@ -377,6 +381,7 @@ class LiveIngestWorker:
 
         # 11. Register in Database
         with get_db_session() as session:
+            # Register in database
             repo = Repository(session)
             creator_key = creator_name.lower().replace(" ", "_")
             source = repo.create_or_get_source(creator_key, "youtube" if "youtu" in url else "twitch", url, "verified")
@@ -419,6 +424,14 @@ class LiveIngestWorker:
             )
             session.add(audit)
             session.flush()
+
+        # DISK SAFETY: Delete intermediate raw stream footage immediately after rendering
+        try:
+            if source_media_path.exists() and "ingest" in str(source_media_path).lower():
+                source_media_path.unlink(missing_ok=True)
+                logger.info(f"[CLEANUP] Deleted intermediate raw footage: {source_media_path.name}")
+        except Exception as cl_err:
+            logger.warning(f"[CLEANUP] Could not delete raw footage {source_media_path}: {cl_err}")
 
         yt_publish_info = None
         if publish_to_youtube and all_hard_pass and is_valid:

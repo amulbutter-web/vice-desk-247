@@ -60,8 +60,7 @@ class GroqTranscriptionEngine:
             "-vn",
             "-ac", "1",
             "-ar", "16000",
-            "-c:a", "aac",
-            "-b:a", "48k",
+            "-c:a", "pcm_s16le",
             str(out_p.resolve()),
         ]
         try:
@@ -96,7 +95,7 @@ class GroqTranscriptionEngine:
                 body.extend(f"--{boundary}\r\nContent-Disposition: form-data; name=\"{name}\"\r\n\r\n{value}\r\n".encode("utf-8"))
 
             def add_file(name: str, filename: str, content: bytes):
-                body.extend(f"--{boundary}\r\nContent-Disposition: form-data; name=\"{name}\"; filename=\"{filename}\"\r\nContent-Type: audio/m4a\r\n\r\n".encode("utf-8"))
+                body.extend(f"--{boundary}\r\nContent-Disposition: form-data; name=\"{name}\"; filename=\"{filename}\"\r\nContent-Type: audio/wav\r\n\r\n".encode("utf-8"))
                 body.extend(content)
                 body.extend(b"\r\n")
 
@@ -105,7 +104,7 @@ class GroqTranscriptionEngine:
             add_field("timestamp_granularities[]", "word")
             if language:
                 add_field("language", language)
-            add_file("file", "audio.m4a", audio_bytes)
+            add_file("file", "audio.wav", audio_bytes)
             body.extend(f"--{boundary}--\r\n".encode("utf-8"))
 
             req = urllib.request.Request(

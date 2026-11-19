@@ -28,29 +28,33 @@ from src.detection.youtube_scavenger import YouTubeScavenger
 
 logger = logging.getLogger("autonomous_worker")
 
-# All 12 target GTA 6 launch streams — IShowSpeed & Mega-Streamers prioritized at Index 0
+# Strictly 15 target GTA 6 launch creators & story missions — 50 videos/day Target
 CONTINUOUS_STREAMS = [
-    {"creator": "IShowSpeed",     "url": "https://www.youtube.com/watch?v=qSyo5d-dVzA", "game": "GTA 6", "lang": "en", "base_priority": 100},
-    {"creator": "CarryisLive",    "url": "https://www.youtube.com/watch?v=irNhWMG560k", "game": "GTA 6", "lang": "hi", "base_priority": 95},
+    {"creator": "Techno Gamerz",  "url": "https://www.youtube.com/watch?v=169ZzvPxvvM", "game": "GTA 6", "lang": "hi", "base_priority": 100},
+    {"creator": "CarryisLive",    "url": "https://www.youtube.com/watch?v=irNhWMG560k", "game": "GTA 6", "lang": "hi", "base_priority": 98},
+    {"creator": "Mythpat",        "url": "https://www.youtube.com/watch?v=LMbea5SozeM", "game": "GTA 6", "lang": "hi", "base_priority": 95},
+    {"creator": "IShowSpeed",     "url": "https://www.youtube.com/watch?v=qSyo5d-dVzA", "game": "GTA 6", "lang": "en", "base_priority": 95},
     {"creator": "Typical Gamer",  "url": "https://www.youtube.com/watch?v=3QjXNSf6keg", "game": "GTA 6", "lang": "en", "base_priority": 90},
-    {"creator": "Mythpat",        "url": "https://www.youtube.com/watch?v=LMbea5SozeM", "game": "GTA 6", "lang": "hi", "base_priority": 85},
-    {"creator": "TGG",            "url": "https://www.youtube.com/watch?v=xMXp80Cntxw", "game": "GTA 6", "lang": "en", "base_priority": 80},
-    {"creator": "Ducky Reloaded", "url": "https://www.youtube.com/watch?v=XuYm5c0Xfs4", "game": "GTA 6", "lang": "en", "base_priority": 75},
+    {"creator": "TGG",            "url": "https://www.youtube.com/watch?v=xMXp80Cntxw", "game": "GTA 6", "lang": "en", "base_priority": 88},
+    {"creator": "RakaZone Gaming","url": "https://www.youtube.com/watch?v=GCkc4t1ZWYs", "game": "GTA 6", "lang": "hi", "base_priority": 85},
+    {"creator": "8bit Goldy",     "url": "https://www.youtube.com/watch?v=NdR6owrFWvA", "game": "GTA 6", "lang": "hi", "base_priority": 82},
+    {"creator": "AS Gaming",      "url": "https://www.youtube.com/watch?v=u1OGXGfOEI0", "game": "GTA 6", "lang": "hi", "base_priority": 80},
+    {"creator": "KreekCraft",     "url": "https://www.youtube.com/watch?v=dy-oCN2NxfA", "game": "GTA 6", "lang": "en", "base_priority": 78},
+    {"creator": "Live Insaan",    "url": "https://www.youtube.com/watch?v=84_m_LgUv3Q", "game": "GTA 6", "lang": "hi", "base_priority": 75},
+    {"creator": "TheRadBrad",     "url": "https://www.youtube.com/watch?v=eEERhKQZWmY", "game": "GTA 6", "lang": "en", "base_priority": 72},
     {"creator": "Dattrax Plays",  "url": "https://www.youtube.com/watch?v=isL0EoUff1A", "game": "GTA 6", "lang": "hi", "base_priority": 70},
-    {"creator": "RakaZone Gaming","url": "https://www.youtube.com/watch?v=GCkc4t1ZWYs", "game": "GTA 6", "lang": "hi", "base_priority": 65},
-    {"creator": "Kreek",          "url": "https://www.youtube.com/watch?v=dy-oCN2NxfA", "game": "GTA 6", "lang": "en", "base_priority": 60},
-    {"creator": "AS Gaming",      "url": "https://www.youtube.com/watch?v=u1OGXGfOEI0", "game": "GTA 6", "lang": "hi", "base_priority": 55},
-    {"creator": "8bit Goldy",     "url": "https://www.youtube.com/watch?v=NdR6owrFWvA", "game": "GTA 6", "lang": "hi", "base_priority": 50},
-    {"creator": "Destin",         "url": "https://www.youtube.com/watch?v=SJtQRxbFvFg", "game": "GTA 6", "lang": "en", "base_priority": 45},
+    {"creator": "Ducky Reloaded", "url": "https://www.youtube.com/watch?v=XuYm5c0Xfs4", "game": "GTA 6", "lang": "en", "base_priority": 68},
+    {"creator": "Jason & Mandy",  "url": "https://www.youtube.com/watch?v=_8-c3XJH5og", "game": "GTA 6", "lang": "en", "base_priority": 99},
 ]
 
 # Extended 65s-75s complete narrative windows to maximize viewer retention and Curiosity
 SECTION_RANGES = [
+    "*00:00:35-00:01:45",  # 70s Story Encounter / Mission Intros
     "*00:15:00-00:16:15",  # 75s Full Game Entry & First Vice City Impression
     "*00:16:30-00:17:40",  # 70s Vice City Airport & Street Roam
     "*00:20:00-00:21:15",  # 75s First Big Escalation & Police Encounter
-    "*00:25:00-00:26:10",  # 70s Deep World & Physics Exploration
-    "*00:30:00-00:31:15",  # 75s Complete Action Climax
+    "*00:32:00-00:33:15",  # 75s Weapon & Destruction Ballistics
+    "*00:45:00-00:46:15",  # 75s Ocean Drive Sunset & Luxury Drive
 ]
 
 
@@ -58,10 +62,12 @@ class AutonomousPublisherDaemon:
     """
     24/7 autonomous cloud worker. Runs forever on Railway.
     Does NOT require the user's laptop.
+    Targets 50 videos daily across 15 GTA 6 creators.
     """
 
-    def __init__(self, interval_sec: int = 900):  # 15 min high-retention pacing
+    def __init__(self, interval_sec: int = 600, target_daily_uploads: int = 50):
         self.interval_sec = interval_sec
+        self.target_daily_uploads = target_daily_uploads
         self.worker = LiveIngestWorker()
         self.yt_publisher = YouTubePublisher()
         self.ig_publisher = InstagramPublisher()
@@ -143,17 +149,18 @@ class AutonomousPublisherDaemon:
         """
         try:
             now = time.time()
-            cutoff = now - (4 * 3600)  # 4 hours
+            cutoff = now - 300  # 5 minutes: Immediate aggressive disk cleanup for cloud containers
             root_dir = Path(__file__).resolve().parent.parent.parent
             temp_dirs = [
                 root_dir / "data" / "temp",
                 root_dir / "data" / "media" / "ingest",
+                root_dir / "data" / "rendered",
             ]
             cleaned_bytes = 0
             for d in temp_dirs:
                 if d.exists():
                     for f in d.iterdir():
-                        if f.is_file() and f.stat().st_mtime < cutoff:
+                        if f.is_file() and f.name != ".gitkeep" and f.stat().st_mtime < cutoff:
                             sz = f.stat().st_size
                             try:
                                 f.unlink()
@@ -161,7 +168,7 @@ class AutonomousPublisherDaemon:
                             except Exception:
                                 pass
             if cleaned_bytes > 0:
-                logger.info(f"[DAEMON] Disk GC: Cleaned {cleaned_bytes / (1024*1024):.1f} MB of old temp files.")
+                logger.info(f"[DAEMON] Cloud Disk GC: Cleaned {cleaned_bytes / (1024*1024):.1f} MB.")
         except Exception as e:
             logger.debug(f"[DAEMON] Disk GC note: {e}")
 
@@ -365,6 +372,13 @@ class AutonomousPublisherDaemon:
                             self.ig_published_count += 1
                 except Exception as ig_err:
                     logger.warning("[DAEMON] Instagram publish error: %s", str(ig_err)[:200])
+
+                # DISK SAFETY: Delete rendered video file immediately after publish
+                try:
+                    Path(video_path).unlink(missing_ok=True)
+                    logger.info("[DAEMON] Cleaned rendered master from disk: %s", Path(video_path).name)
+                except Exception:
+                    pass
 
                 if current_first_time_id:
                     status = "PUBLISHED" if len(destinations) > 0 else "FAILED"
