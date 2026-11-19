@@ -142,7 +142,7 @@ class YouTubeScavenger:
                     "stream_timestamp_offset": offset_str,
                     "section_range": section_range,
                     "viral_hook": hook,
-                    "priority": base_prio + (2 if views > 100000 else 0),
+                    "priority": max(5, min(25, (base_prio // 2) + (3 if views > 100000 else 0))),
                     "metadata_json": {
                         "caption": caption,
                         "title": plan.get("title", f"{title} #Shorts #GTA6"),

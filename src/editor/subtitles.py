@@ -50,11 +50,14 @@ class SubtitleGenerator:
         output_ass_path: str,
         hook_text: Optional[str] = None,
         style_preset: str = "viral_gold",
-        words_per_group: int = 4,
+        words_per_group: int = 3,
+        hook_duration_ms: int = 7000,
+        fallback_cues: Optional[List[Dict[str, Any]]] = None,
     ) -> str:
         """
         Generates production-grade ASS subtitles with word-by-word active pop/highlight.
         Enforces vertical safe margins so IG Reels bottom UI & right buttons never overlap.
+        Features seamless continuous timing between words (zero flicker).
         """
         out_p = Path(output_ass_path)
         out_p.parent.mkdir(parents=True, exist_ok=True)
@@ -80,50 +83,76 @@ class SubtitleGenerator:
             f"Style: ViralMain,Impact,80,&H00FFFFFF,&H0000FFFF,&H00000000,&H80000000,-1,0,0,0,100,100,2,0,1,7,3,2,60,60,420,1",
             # ViralActive: Golden popped highlight
             f"Style: ViralActive,Impact,88,{active_color},&H0000FFFF,&H00000000,&H80000000,-1,0,0,0,118,118,2,0,1,8,4,2,60,60,420,1",
-            # HookBanner: Persistent top banner, bold vibrant uppercase, high CTR
+            # HookBanner: Prominent top hook banner, high CTR
             f"Style: HookBanner,Impact,74,&H0000FFFF,&H00FFFFFF,&H00000000,&H80000000,-1,0,0,0,100,100,3,0,1,8,4,8,40,40,240,1",
             "",
             "[Events]",
             "Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text",
         ]
 
-        # 1. Top Hook Banner (stays persistent across entire clip for maximum retention)
+        # 1. Top Hook Banner (Stays visible during hook window)
         if hook_text and hook_text.strip():
             clean_hook = hook_text.strip().upper()
+            hook_end_time = self._format_ass_time(hook_duration_ms)
             ass_lines.append(
-                f"Dialogue: 1,0:00:00.00,0:00:03.00,HookBanner,,0,0,0,,{clean_hook}"
+                f"Dialogue: 1,0:00:00.00,{hook_end_time},HookBanner,,0,0,0,,{clean_hook}"
             )
 
-        # 2. Word Groups with Active Highlight
-        # We group words into chunks of `words_per_group` (e.g. 3-4 words)
+        # 2. Word Groups with Active Highlight (Karaoke Hormozi style)
         if words:
-            for i in range(0, len(words), words_per_group):
-                group = words[i : i + words_per_group]
-                if not group:
-                    continue
+            # Group words intelligently, breaking on silence pauses > 1.2s
+            groups = []
+            curr_group = []
+            for w in words:
+                if curr_group:
+                    gap_ms = w["start_ms"] - curr_group[-1]["end_ms"]
+                    if gap_ms > 1200 or len(curr_group) >= words_per_group:
+                        groups.append(curr_group)
+                        curr_group = [w]
+                    else:
+                        curr_group.append(w)
+                else:
+                    curr_group.append(w)
+            if curr_group:
+                groups.append(curr_group)
 
-                group_start = group[0]["start_ms"]
+            for group in groups:
                 group_end = group[-1]["end_ms"]
 
-                # For each word in the group, create an event where that word is highlighted
                 for w_idx, current_word in enumerate(group):
-                    w_start = self._format_ass_time(current_word["start_ms"])
-                    w_end = self._format_ass_time(current_word["end_ms"])
+                    w_start_ms = current_word["start_ms"]
+                    if w_idx < len(group) - 1:
+                        w_end_ms = group[w_idx + 1]["start_ms"]
+                    else:
+                        w_end_ms = group_end
 
-                    # Construct text line where current_word has active styling
+                    if w_end_ms <= w_start_ms:
+                        w_end_ms = w_start_ms + 100
+
+                    w_start = self._format_ass_time(w_start_ms)
+                    w_end = self._format_ass_time(w_end_ms)
+
                     rendered_parts = []
                     for idx, w in enumerate(group):
                         word_str = w["word"].strip().upper()
                         if idx == w_idx:
-                            # Popped word in Gold
                             rendered_parts.append(f"{{\\c{active_color}\\fscx112\\fscy112}}{word_str}{{\\r}}")
                         else:
-                            # Regular white word
                             rendered_parts.append(f"{{\\c&H00FFFFFF&}}{word_str}{{\\r}}")
 
                     line_text = " ".join(rendered_parts)
                     ass_lines.append(
                         f"Dialogue: 0,{w_start},{w_end},ViralMain,,0,0,0,,{line_text}"
+                    )
+        elif fallback_cues:
+            # Dynamic kinetic action callouts when no spoken words are detected
+            for cue in fallback_cues:
+                c_start = self._format_ass_time(cue.get("start_ms", 0))
+                c_end = self._format_ass_time(cue.get("end_ms", 3000))
+                c_text = cue.get("text", "").strip().upper()
+                if c_text:
+                    ass_lines.append(
+                        f"Dialogue: 0,{c_start},{c_end},ViralActive,,0,0,0,,{c_text}"
                     )
 
         content = "\n".join(ass_lines)

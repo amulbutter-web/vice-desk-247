@@ -1,8 +1,8 @@
 """
 Automated Live Ingest and Clipping Worker.
-Processes live stream feeds, YouTube/Twitch VODs (e.g. iShowSpeed streams),
-and executes the complete multi-signal detection, kinetic editorial planning,
-FFmpeg rendering, and QC pipeline asynchronously.
+Processes live stream feeds, YouTube/Twitch VODs (e.g. CarryMinati, Mythpat, Typical Gamer, Speed),
+and executes the complete multi-signal detection, Groq Whisper transcription,
+kinetic editorial planning, FFmpeg rendering, and QC pipeline asynchronously.
 """
 import os
 import shutil
@@ -24,6 +24,8 @@ from src.detection.false_positive_filter import FalsePositiveFilter
 from src.editor.planner import EditorialPlanner
 from src.editor.subtitles import SubtitleGenerator
 from src.editor.renderer import VideoRenderer
+from src.editor.transcription import GroqTranscriptionEngine
+from src.core.groq_pool import GroqPool
 from src.qc.hard_gates import HardQualityGates
 from src.qc.editorial_judge import EditorialJudge
 from src.qc.supervisor import QCSupervisor
@@ -31,7 +33,7 @@ from src.editor.clip_copy import clip_copy
 from src.db.database import init_db
 
 logger = logging.getLogger("live_worker")
-
+groq_pool = GroqPool()
 
 
 class LiveIngestWorker:
@@ -104,8 +106,17 @@ class LiveIngestWorker:
                 ]
                 res_nat = subprocess.run(cmd_native, capture_output=True, text=True, timeout=120)
                 if res_nat.returncode == 0 and target_file.exists() and target_file.stat().st_size > 500_000:
-                    logger.info(f"Native yt-dlp captured genuine footage: {target_file} ({target_file.stat().st_size / (1024*1024):.2f} MB)")
-                    return target_file
+                    try:
+                        probe_check = self.probe.probe(str(target_file))
+                        if probe_check.get("has_video"):
+                            logger.info(f"Native yt-dlp captured verified footage: {target_file} ({target_file.stat().st_size / (1024*1024):.2f} MB)")
+                            return target_file
+                        else:
+                            logger.warning("Native yt-dlp file has no video stream — trying fallback")
+                            target_file.unlink(missing_ok=True)
+                    except Exception as p_err:
+                        logger.warning(f"Native yt-dlp probe error: {p_err}")
+                        target_file.unlink(missing_ok=True)
                 else:
                     logger.warning(f"Native yt-dlp returned code {res_nat.returncode}: {res_nat.stderr[-200:] if res_nat.stderr else ''}")
             except Exception as en:
@@ -117,7 +128,7 @@ class LiveIngestWorker:
                 cmd_g = [
                     self.ytdlp_bin,
                     "-g",
-                    "-f", "299+140/298+140/bestvideo[ext=mp4]+bestaudio[ext=m4a]/best",
+                    "-f", "bestvideo[ext=mp4]+bestaudio[ext=m4a]/bestvideo+bestaudio/best[vcodec!=none]",
                     "--extractor-args", "youtube:player_client=default,visionos",
                     "--user-agent", ua,
                     "--no-warnings",
@@ -156,8 +167,16 @@ class LiveIngestWorker:
 
                     res_ff = subprocess.run(cmd_ff, capture_output=True, text=True, timeout=60)
                     if res_ff.returncode == 0 and target_file.exists() and target_file.stat().st_size > 500_000:
-                        logger.info(f"Fallback stream footage captured: {target_file} ({target_file.stat().st_size / (1024*1024):.2f} MB)")
-                        return target_file
+                        try:
+                            probe_check = self.probe.probe(str(target_file))
+                            if probe_check.get("has_video"):
+                                logger.info(f"Fallback stream footage verified: {target_file} ({target_file.stat().st_size / (1024*1024):.2f} MB)")
+                                return target_file
+                            else:
+                                target_file.unlink(missing_ok=True)
+                        except Exception as p_err:
+                            logger.warning(f"Fallback probe error: {p_err}")
+                            target_file.unlink(missing_ok=True)
                     else:
                         logger.warning(f"Fallback FFmpeg direct slice failed (code {res_ff.returncode}): {res_ff.stderr[-200:] if res_ff.stderr else ''}")
             except Exception as eg:
@@ -174,12 +193,15 @@ class LiveIngestWorker:
         layout_mode: str = "blur_fill",
         publish_to_youtube: bool = False,
         section_range: str = "*00:15:00-00:16:15",
+        viral_hook: Optional[str] = None,
+        caption: Optional[str] = None,
+        title: Optional[str] = None,
     ) -> Dict[str, Any]:
         """
         Executes complete end-to-end processing pipeline for a stream:
         Ingest -> Probing -> Audio/Visual Detection -> Narrative Boundary ->
-        Kinetic ASS Subtitles -> Editorial Planning -> FFmpeg Rendering ->
-        Quality Control Gate -> DB Registration.
+        Groq Whisper Speech Transcription -> Kinetic ASS Subtitles ->
+        Editorial Planning -> FFmpeg Rendering -> QC Gate -> DB Registration.
         """
         trace_id = str(uuid.uuid4())
         logger.info(f"Starting Live Ingest Job [Trace: {trace_id}] for {creator_name} ({url})")
@@ -187,18 +209,20 @@ class LiveIngestWorker:
         ingest_dir = settings.media_dir / "ingest"
         try:
             source_media_path = self.fetch_stream_sample(url, ingest_dir, section_range=section_range)
+            # 1. Probing & Checksum
+            meta = self.probe.probe(str(source_media_path))
+            if not meta.get("has_video"):
+                raise RuntimeError("Source media contains no video stream")
+            sha256 = self.probe.compute_sha256(str(source_media_path))
         except Exception as dl_err:
-            logger.error(f"[INGEST] Genuine footage download failed for {creator_name}: {dl_err}")
+            logger.error(f"[INGEST] Genuine footage fetch/probe failed for {creator_name}: {dl_err}")
             return {
                 "status": "FAILED",
+                "qc_passed": False,
                 "error": str(dl_err),
                 "output_path": None,
                 "render_id": None,
             }
-
-        # 1. Probing & Checksum
-        meta = self.probe.probe(str(source_media_path))
-        sha256 = self.probe.compute_sha256(str(source_media_path))
 
         # 2. Multi-Signal Detection
         audio_det = AudioDetector(ffmpeg_binary=self.ffmpeg_bin)
@@ -231,12 +255,63 @@ class LiveIngestWorker:
             visual_activity=0.80,
         )
 
-        ai_meta = clip_copy(creator_name, game, boundaries, scene_cuts, peak_ms if audio_peaks else None)
-        ai_hook = ai_meta["hook"]
-        ass_sub_path = settings.rendered_dir / f"subs_{trace_id[:8]}.ass"
-        SubtitleGenerator().generate_ass(words=[], output_ass_path=str(ass_sub_path), hook_text=ai_hook)
+        # 5. Transcription via Groq Whisper with exact word-level millisecond timestamps
+        transcription_engine = GroqTranscriptionEngine(ffmpeg_bin=self.ffmpeg_bin)
+        lang_hint = "hi" if creator_name in ("Mythpat", "CarryisLive", "CarryMinati", "Dattrax Plays", "RakaZone Gaming", "AS Gaming", "8bit Goldy") else None
 
-        # 7. Editorial Planning
+        start_sec = boundaries["window_start_ms"] / 1000.0
+        duration_sec = boundaries["duration_ms"] / 1000.0
+
+        trans_res = transcription_engine.transcribe_video_interval(
+            video_path=str(source_media_path),
+            start_sec=start_sec,
+            duration_sec=duration_sec,
+            language=lang_hint,
+        )
+        words = trans_res.get("words", [])
+        transcript_text = trans_res.get("text", "")
+
+        # 6. Editorial Copy (Viral Hook, Title, Storytelling Caption)
+        if viral_hook and viral_hook.strip():
+            ai_hook = viral_hook.strip()
+            ai_caption = caption or f"{ai_hook} in GTA 6!"
+            ai_title = title or f"{creator_name} GTA 6 | {ai_hook} #Shorts"
+        else:
+            try:
+                ai_hook = groq_pool.generate_viral_hook(creator_name=creator_name, game=game, context_notes=transcript_text)
+                reels_meta = groq_pool.generate_reels_metadata(creator_name=creator_name, game=game, hook=ai_hook, context_notes=transcript_text)
+                ai_caption = reels_meta.get("caption", f"{creator_name} GTA 6 gameplay moment!")
+                ai_title = f"{creator_name} | {ai_hook} #Shorts"
+            except Exception as gr_err:
+                logger.warning("[LIVE_WORKER] Groq viral hook fallback: %s", gr_err)
+                fb_meta = clip_copy(creator_name, game, boundaries, scene_cuts, peak_ms if audio_peaks else None)
+                ai_hook = fb_meta["hook"]
+                ai_caption = fb_meta["caption"]
+                ai_title = fb_meta["title"]
+
+        # 7. Subtitle Generation (Hormozi Kinetic ASS)
+        ass_sub_path = settings.rendered_dir / f"subs_{trace_id[:8]}.ass"
+        fallback_cues = []
+        if not words:
+            cut_start = boundaries["window_start_ms"]
+            for cut_t in scene_cuts:
+                if cut_start + 1500 <= cut_t <= boundaries["window_end_ms"] - 1500:
+                    rel_ms = cut_t - cut_start
+                    fallback_cues.append({
+                        "start_ms": rel_ms,
+                        "end_ms": rel_ms + 2500,
+                        "text": "NEXT-GEN PHYSICS 🔥" if lang_hint != "hi" else "GTA 6 NEXT LEVEL 🔥",
+                    })
+
+        SubtitleGenerator().generate_ass(
+            words=words,
+            output_ass_path=str(ass_sub_path),
+            hook_text=ai_hook,
+            fallback_cues=fallback_cues,
+            hook_duration_ms=7000,
+        )
+
+        # 8. Editorial Planning
         planner = EditorialPlanner(canvas_width=1080, canvas_height=1920, fps=60.0)
         plan_id = f"plan-{uuid.uuid4().hex[:8]}"
         edit_plan = planner.create_edit_plan(
@@ -249,7 +324,7 @@ class LiveIngestWorker:
             layout_mode=layout_mode,
         )
 
-        # 7. Render Vertical 9:16 Video
+        # 9. Render Vertical 9:16 Video
         render_id = f"render-{uuid.uuid4().hex[:8]}"
         output_mp4_path = settings.rendered_dir / f"{render_id}.mp4"
         renderer = VideoRenderer(probe=self.probe, ffmpeg_bin=self.ffmpeg_bin)
@@ -261,7 +336,7 @@ class LiveIngestWorker:
             timeout_sec=180,
         )
 
-        # 8. Automated QC Hard Gates & Supervisor
+        # 10. Automated QC Hard Gates & Supervisor
         hard_gates = HardQualityGates(probe=self.probe, visual_detector=visual_det)
         judge = EditorialJudge()
         supervisor = QCSupervisor(hard_gates=hard_gates, judge=judge)
@@ -275,7 +350,7 @@ class LiveIngestWorker:
         )
         all_hard_pass = all(g.pass_ for g in qc_res.hard_gates)
 
-        # 9. Register in Database
+        # 11. Register in Database
         with get_db_session() as session:
             repo = Repository(session)
             creator_key = creator_name.lower().replace(" ", "_")
@@ -325,8 +400,8 @@ class LiveIngestWorker:
             try:
                 from src.publishing.publishers import YouTubePublisher
                 yt_pub = YouTubePublisher()
-                yt_title = ai_meta.get("title", f"{creator_name} - {ai_hook}")
-                yt_desc = f"{ai_meta.get('caption', '')}\n\n{ai_meta.get('hashtags', '')}\n\nStream: {url}\nClipped by ViceDesk 24/7 AI Intelligence."
+                yt_title = ai_title
+                yt_desc = f"{ai_caption}\n\nStream: {url}\nClipped by ViceDesk 24/7 AI Intelligence."
                 yt_publish_info = yt_pub.upload_short(
                     video_path=str(output_mp4_path),
                     title=yt_title,
@@ -349,9 +424,11 @@ class LiveIngestWorker:
             "resolution": f"{render_meta['width']}x{render_meta['height']}",
             "qc_passed": all_hard_pass and is_valid,
             "creator": creator_name,
-            "title": ai_meta.get("title", f"{creator_name} - {ai_hook}"),
+            "title": ai_title,
             "hook": ai_hook,
             "score": 96 if all_hard_pass else 80,
-            "caption": f"{ai_meta.get('caption', '')} {ai_meta.get('hashtags', '')}".strip() or f"Unreal live moment from {creator_name}! #GTA6 #{game.replace(' ', '')}",
+            "caption": ai_caption,
+            "words_count": len(words),
+            "transcript": transcript_text,
             "youtube_publish": yt_publish_info,
         }

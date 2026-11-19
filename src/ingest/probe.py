@@ -78,6 +78,7 @@ class MediaProbe:
             "size_bytes": int(fmt.get("size", path.stat().st_size)),
             "bitrate": int(fmt.get("bit_rate", 0)),
             "has_audio": len(audio_streams) > 0,
+            "has_video": len(video_streams) > 0,
         }
 
     @staticmethod

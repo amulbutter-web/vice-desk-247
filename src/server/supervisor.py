@@ -234,7 +234,13 @@ No action needed — just watch for alerts.
     # ─────────────────────── Helpers ──────────────────────────
 
     def _get(self, url: str, timeout: int = 10) -> dict:
-        req = urllib.request.Request(url)
+        headers = {"User-Agent": "ViceDeskSupervisor/2.0"}
+        password = os.environ.get("VICE_OPERATOR_PASSWORD")
+        if password:
+            import base64
+            token = base64.b64encode(f"owner:{password}".encode()).decode()
+            headers["Authorization"] = f"Basic {token}"
+        req = urllib.request.Request(url, headers=headers)
         with urllib.request.urlopen(req, timeout=timeout) as resp:
             return json.loads(resp.read().decode())
 

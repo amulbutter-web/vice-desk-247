@@ -60,7 +60,7 @@ class AutonomousPublisherDaemon:
     Does NOT require the user's laptop.
     """
 
-    def __init__(self, interval_sec: int = 1200):  # 20 min high-retention pacing
+    def __init__(self, interval_sec: int = 900):  # 15 min high-retention pacing
         self.interval_sec = interval_sec
         self.worker = LiveIngestWorker()
         self.yt_publisher = YouTubePublisher()
@@ -268,6 +268,9 @@ class AutonomousPublisherDaemon:
                     layout_mode="blur_fill",
                     section_range=section,
                     publish_to_youtube=False,
+                    viral_hook=hook,
+                    caption=caption,
+                    title=title,
                 )
                 render_id = res.get("render_id")
                 video_path = res.get("output_path")
@@ -332,7 +335,12 @@ class AutonomousPublisherDaemon:
 
                 # ── Step 3: Instagram Reels Upload ──
                 try:
-                    ig_caption = f"{res['caption']}\n\nStreamer: {creator}"
+                    raw_caption = res.get("caption") or caption or f"{hook} in GTA 6!"
+                    ig_caption = raw_caption
+                    if f"Streamer: {creator}" not in ig_caption:
+                        ig_caption += f"\n\nStreamer: {creator}"
+                    if "#GTA6" not in ig_caption:
+                        ig_caption += "\n\n#GTA6 #ViceCity #GTA6Gameplay #NextGenGaming #GamingReels #Shorts"
 
                     # Upload to public CDN first (Railway serves /media/)
                     video_filename = Path(video_path).name
@@ -359,7 +367,7 @@ class AutonomousPublisherDaemon:
                     logger.warning("[DAEMON] Instagram publish error: %s", str(ig_err)[:200])
 
                 if current_first_time_id:
-                    status = {2: "PUBLISHED", 1: "PARTIAL", 0: "FAILED"}[len(destinations)]
+                    status = "PUBLISHED" if len(destinations) > 0 else "FAILED"
                     self.ledger.update_event_status(current_first_time_id, status, video_path)
 
             except Exception as e:
