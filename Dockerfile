@@ -28,6 +28,7 @@ COPY pyproject.toml ./
 # Install Python requirements
 RUN pip install --no-cache-dir \
     fastapi==0.115.6 \
+    python-multipart \
     uvicorn==0.32.1 \
     pydantic==2.10.3 \
     pydantic-settings==2.14.2 \

@@ -7,7 +7,7 @@ import time
 import logging
 from pathlib import Path
 from typing import Dict, Any, List, Optional
-from fastapi import APIRouter, HTTPException, Depends, BackgroundTasks, Query, Request, UploadFile, File
+from fastapi import APIRouter, HTTPException, Depends, BackgroundTasks, Query, Request
 from fastapi.responses import PlainTextResponse
 from pydantic import BaseModel
 from src.config import settings
@@ -653,22 +653,22 @@ def admin_unstick_ledger():
 
 
 @router.post("/media/upload")
-async def upload_media_file(file: UploadFile = File(...)):
-    """Uploads a rendered reel or video file directly to the server's public media folder."""
-    import shutil
+async def upload_media_file(request: Request, filename: str = Query(...)):
+    """Uploads raw binary stream directly without python-multipart dependency."""
     rendered_dir = Path(__file__).resolve().parent.parent.parent / "data" / "rendered"
     rendered_dir.mkdir(parents=True, exist_ok=True)
-    target_path = rendered_dir / file.filename
-    with target_path.open("wb") as buffer:
-        shutil.copyfileobj(file.file, buffer)
+    target_path = rendered_dir / filename
+    with target_path.open("wb") as f:
+        async for chunk in request.stream():
+            f.write(chunk)
     size = target_path.stat().st_size
     host = os.environ.get("PUBLIC_HOST", "https://vice-desk-intelligence-production.up.railway.app")
-    full_url = f"{host.rstrip('/')}/media/{file.filename}"
-    logger.info(f"[MEDIA_UPLOAD] Uploaded {file.filename} ({size / (1024*1024):.2f} MB) -> {full_url}")
+    full_url = f"{host.rstrip('/')}/media/{filename}"
+    logger.info(f"[MEDIA_UPLOAD] Uploaded {filename} ({size / (1024*1024):.2f} MB) -> {full_url}")
     return {
         "status": "success",
-        "filename": file.filename,
-        "url": f"/media/{file.filename}",
+        "filename": filename,
+        "url": f"/media/{filename}",
         "full_url": full_url,
         "size": size,
     }
