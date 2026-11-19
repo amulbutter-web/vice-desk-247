@@ -7,7 +7,7 @@ import time
 import logging
 from pathlib import Path
 from typing import Dict, Any, List, Optional
-from fastapi import APIRouter, HTTPException, Depends, BackgroundTasks, Query, Request
+from fastapi import APIRouter, HTTPException, Depends, BackgroundTasks, Query, Request, UploadFile, File
 from fastapi.responses import PlainTextResponse
 from pydantic import BaseModel
 from src.config import settings
@@ -650,4 +650,26 @@ def admin_unstick_ledger():
             count += 1
         logger.info(f"[ADMIN] Unstuck {count} events in ledger.")
         return {"unstuck_count": count, "status": "OK"}
+
+
+@router.post("/media/upload")
+async def upload_media_file(file: UploadFile = File(...)):
+    """Uploads a rendered reel or video file directly to the server's public media folder."""
+    import shutil
+    rendered_dir = Path(__file__).resolve().parent.parent.parent / "data" / "rendered"
+    rendered_dir.mkdir(parents=True, exist_ok=True)
+    target_path = rendered_dir / file.filename
+    with target_path.open("wb") as buffer:
+        shutil.copyfileobj(file.file, buffer)
+    size = target_path.stat().st_size
+    host = os.environ.get("PUBLIC_HOST", "https://vice-desk-intelligence-production.up.railway.app")
+    full_url = f"{host.rstrip('/')}/media/{file.filename}"
+    logger.info(f"[MEDIA_UPLOAD] Uploaded {file.filename} ({size / (1024*1024):.2f} MB) -> {full_url}")
+    return {
+        "status": "success",
+        "filename": file.filename,
+        "url": f"/media/{file.filename}",
+        "full_url": full_url,
+        "size": size,
+    }
 
