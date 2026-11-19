@@ -53,7 +53,7 @@ class YouTubeScavenger:
         cmd = [
             self.ytdlp_bin,
             f"ytsearch{limit}:{query}",
-            "--extractor-args", "youtube:player_client=android,web",
+            "--extractor-args", "youtube:player_client=default,visionos",
             "--dump-json",
             "--flat-playlist",
             "--no-warnings",

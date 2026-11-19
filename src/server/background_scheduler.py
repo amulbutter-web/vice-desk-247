@@ -83,35 +83,36 @@ class AutonomousPublisherDaemon:
         self.consecutive_errors = 0
         self.MAX_ERRORS = 5
 
-    def is_already_published_on_instagram(self, hook: str, headline: str) -> bool:
+    def is_already_published_on_instagram(self, hook: str, headline: str, creator: str = "") -> bool:
         """
         Queries recent reels from Instagram to strictly prevent duplicate posts.
-        Checks for matching hooks, headlines, or key event identifiers.
+        Checks for matching hooks, headlines, or key event identifiers across creators.
         """
         try:
-            recent = self.ig_publisher.get_recent_reels(limit=40)
-            h_clean = hook.lower().replace("💀", "").replace("🚨", "").strip()
-            hl_clean = headline.lower().strip()
+            import re
+            recent = self.ig_publisher.get_recent_reels(limit=50)
+            clean_str = lambda s: re.sub(r"[^\w\s]", " ", (s or "").lower()).strip()
+            stop_words = {"gta", "gta6", "in", "is", "a", "the", "and", "or", "of", "to", "first", "time", "with", "at", "for"}
 
-            key_phrases = []
-            if "beach rampage" in h_clean or "beach rampage" in hl_clean:
-                key_phrases.append("beach rampage")
-            if ("strip club" in h_clean or "strip club" in hl_clean) and "vip" in h_clean:
-                key_phrases.append("strip club")
-            if "gps" in h_clean or "secret map" in h_clean:
-                key_phrases.append("secret map")
-                key_phrases.append("gps tracker")
-            if "tire" in h_clean or "tire" in hl_clean:
-                key_phrases.append("tire popped")
-            if "airport is insane" in h_clean:
-                key_phrases.append("airport is insane")
+            creator_clean = clean_str(creator).replace("gaming", "").replace("plays", "").replace("islive", "").strip()
+            h_core = set(clean_str(hook).split()) - stop_words
+            hl_core = set(clean_str(headline).split()) - stop_words
 
             for r in recent:
-                cap = (r.get("caption") or "").lower()
-                if len(h_clean) > 10 and h_clean in cap:
+                cap_clean = clean_str(r.get("caption") or "")
+                cap_words = set(cap_clean.split())
+
+                # Exact hook match (ignoring emojis/case)
+                h_str = clean_str(hook)
+                if len(h_str) > 12 and h_str in cap_clean:
                     return True
-                for kp in key_phrases:
-                    if kp in cap:
+
+                # Creator + 3 core words match
+                creator_in_cap = any(c_part in cap_clean for c_part in creator_clean.split() if len(c_part) > 2) if creator_clean else True
+                if creator_in_cap:
+                    if len(h_core) >= 2 and len(h_core.intersection(cap_words)) >= min(3, len(h_core)):
+                        return True
+                    if len(hl_core) >= 2 and len(hl_core.intersection(cap_words)) >= min(3, len(hl_core)):
                         return True
             return False
         except Exception as e:
@@ -193,10 +194,8 @@ class AutonomousPublisherDaemon:
             if self.scavenge_counter % 15 == 0:
                 self._cleanup_temp_disk_space()
 
-            # Alternate between Scheduled Historic 'First-Time' events and live continuous streams
-            next_first_time = None
-            if self.scavenge_counter % 2 == 0:
-                next_first_time = self.ledger.get_next_scheduled_event()
+            # Prioritize Curated Historic 'First-Time' events first, then continuous streams
+            next_first_time = self.ledger.get_next_scheduled_event()
             current_first_time_id = None
 
             if next_first_time:
@@ -212,7 +211,7 @@ class AutonomousPublisherDaemon:
                 self.current_stream_idx += 1
 
                 # Strict Deduplication Check before expensive downloading/rendering
-                if self.is_already_published_on_instagram(hook, next_first_time["headline"]):
+                if self.is_already_published_on_instagram(hook, next_first_time["headline"], creator):
                     logger.info(f"[DAEMON] Event '{next_first_time['headline']}' is ALREADY published on Instagram. Advancing queue.")
                     self.ledger.update_event_status(current_first_time_id, "PUBLISHED", "ALREADY_ON_IG")
                     continue
