@@ -61,6 +61,17 @@ def get_candidate_proxies() -> List[str]:
         pool.insert(0, primary)
     return pool
 
+def _proxy_is_dead(stderr: str) -> bool:
+    """Returns True if the proxy itself is dead (402 Payment Required / connection refused)."""
+    dead_signals = [
+        "402 Payment Required",
+        "Tunnel connection failed",
+        "Unable to connect to proxy",
+        "ProxyError",
+        "Cannot connect to proxy",
+    ]
+    return any(sig in stderr for sig in dead_signals)
+
 # Global rate-limiter: only 1 yt-dlp process runs at a time across all workers
 # Prevents 3 workers simultaneously hammering YouTube's rate-limit detection
 _ytdlp_global_lock = threading.Semaphore(1)
@@ -135,6 +146,9 @@ class LiveIngestWorker:
         has_cookies = (cookies_cand.exists() and cookies_cand.stat().st_size > 0)
 
         # 3. Primary Method: Native yt-dlp slice with multi-proxy failover & auto-drop expired cookies
+        # Sentinel: if all proxies are dead (402), we try without proxy as last resort
+        all_proxies_dead = False
+        dead_proxy_count = 0
         if os.path.exists(self.ytdlp_bin) and (url.startswith("http://") or url.startswith("https://")):
             for p_idx, current_proxy in enumerate(candidate_proxies[:4]):
                 # Determine auth strategies for this proxy: first with cookies (if any), then without cookies
@@ -191,10 +205,55 @@ class LiveIngestWorker:
                                 has_cookies = False  # Don't try cookies again
                                 continue
                             logger.warning(f"[INGEST] yt-dlp returned code {res_nat.returncode} on proxy {current_proxy.split('@')[-1]}: {stderr_out[-300:]}")
+                            # Detect dead proxy (402 Payment Required) — count how many consecutive dead
+                            if _proxy_is_dead(stderr_out):
+                                dead_proxy_count += 1
+                                logger.warning(f"[INGEST] Proxy #{p_idx+1} is dead (402/ConnErr). Dead count: {dead_proxy_count}/{len(candidate_proxies[:4])}")
                             # Break to next proxy
                             break
                     except Exception as en:
                         logger.warning(f"[INGEST] yt-dlp slice error on proxy {current_proxy.split('@')[-1]}: {en}")
+                        break
+
+            # 3b. ALL-PROXY-DEAD FALLBACK: If all proxies returned 402, try direct (Railway's own IP)
+            # Railway IPs are US datacenter — YouTube allows them without proxy for non-geo-restricted content
+            if dead_proxy_count >= min(2, len(candidate_proxies[:4])):
+                logger.warning(f"[INGEST] All {dead_proxy_count} tried proxies are dead (402). Attempting DIRECT download (no proxy) as self-healing fallback...")
+                for auth_args_direct in ([["--cookies", str(cookies_cand)]] if has_cookies else []) + [[]]:
+                    try:
+                        cmd_direct = [
+                            self.ytdlp_bin,
+                            "-4",
+                            "--extractor-args", "youtube:player_client=mweb,android,web",
+                            "--sleep-interval", "3",
+                            "--max-sleep-interval", "7",
+                            "-f", "best[height<=1080]/bestvideo[height<=1080]+bestaudio/best",
+                            "--download-sections", section_range,
+                            "--force-overwrites",
+                            "--no-playlist",
+                            "--no-warnings",
+                            "-o", str(target_file),
+                        ] + auth_args_direct + [url]
+                        with _ytdlp_global_lock:
+                            elapsed = time.monotonic() - _ytdlp_last_call_time
+                            if elapsed < _YTDLP_MIN_INTERVAL_SEC:
+                                time.sleep(_YTDLP_MIN_INTERVAL_SEC - elapsed)
+                            _ytdlp_last_call_time = time.monotonic()
+                            res_direct = subprocess.run(cmd_direct, capture_output=True, text=True, timeout=180)
+                        if res_direct.returncode == 0 and target_file.exists() and target_file.stat().st_size > 500_000:
+                            probe_check = self.probe.probe(str(target_file))
+                            if probe_check.get("has_video") and probe_check.get("duration_ms", 0) > 10_000:
+                                logger.info(f"[INGEST][DIRECT] yt-dlp direct download succeeded: {target_file} ({target_file.stat().st_size / (1024*1024):.2f} MB)")
+                                return target_file
+                        else:
+                            stderr_direct = res_direct.stderr or ""
+                            if "--cookies" in auth_args_direct and any(sig in stderr_direct for sig in ["cookies are no longer valid", "confirm you're not a bot"]):
+                                has_cookies = False
+                                continue
+                            logger.warning(f"[INGEST][DIRECT] Direct download also failed: {stderr_direct[-200:]}")
+                            break
+                    except Exception as de:
+                        logger.warning(f"[INGEST][DIRECT] Direct download exception: {de}")
                         break
 
             # 4. Fallback Method: yt-dlp -g + FFmpeg direct slice with residential proxy
