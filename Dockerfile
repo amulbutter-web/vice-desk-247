@@ -48,6 +48,7 @@ RUN pip install --no-cache-dir \
     pydantic==2.10.3 \
     pydantic-settings==2.14.2 \
     sqlalchemy>=2.0.0 \
+    psycopg2-binary>=2.9.0 \
     jsonschema>=4.20.0 \
     click>=8.0.0 \
     "yt-dlp[default]" \

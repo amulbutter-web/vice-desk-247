@@ -10,8 +10,11 @@ from src.db.models import Base
 
 # Engine configuration
 raw_db_url = settings.db_url
+# Normalize URL prefix for psycopg2 driver (SQLAlchemy 2.x uses psycopg3 by default for postgresql://)
 if raw_db_url.startswith("postgres://"):
-    raw_db_url = raw_db_url.replace("postgres://", "postgresql://", 1)
+    raw_db_url = raw_db_url.replace("postgres://", "postgresql+psycopg2://", 1)
+elif raw_db_url.startswith("postgresql://"):
+    raw_db_url = raw_db_url.replace("postgresql://", "postgresql+psycopg2://", 1)
 
 engine_kwargs = {"echo": False}
 if raw_db_url.startswith("sqlite"):
