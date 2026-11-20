@@ -33,11 +33,8 @@ RUN curl -fsSL -o /usr/local/bin/bgutil-pot \
     https://github.com/jim60105/bgutil-ytdlp-pot-provider-rs/releases/download/v0.8.1/bgutil-pot-linux-x86_64 \
     && chmod +x /usr/local/bin/bgutil-pot
 
-# Install wgcf and wireproxy for Cloudflare WARP userspace SOCKS5 bridge (unlimited free bandwidth)
-RUN curl -fsSL -o /usr/local/bin/wgcf \
-    https://github.com/ViRb3/wgcf/releases/download/v2.2.26/wgcf_2.2.26_linux_amd64 \
-    && chmod +x /usr/local/bin/wgcf \
-    && curl -fsSL https://github.com/windtf/wireproxy/releases/download/v1.0.9/wireproxy_linux_amd64.tar.gz | tar -xz -C /usr/local/bin wireproxy \
+# Install wireproxy for Cloudflare WARP userspace SOCKS5 bridge (unlimited free bandwidth)
+RUN curl -fsSL https://github.com/windtf/wireproxy/releases/download/v1.0.9/wireproxy_linux_amd64.tar.gz | tar -xz -C /usr/local/bin wireproxy \
     && chmod +x /usr/local/bin/wireproxy
 
 # Copy dependencies manifest
@@ -54,6 +51,7 @@ RUN pip install --no-cache-dir \
     psycopg2-binary>=2.9.0 \
     jsonschema>=4.20.0 \
     click>=8.0.0 \
+    cryptography>=43.0.0 \
     "yt-dlp[default]" \
     starlette==0.41.3 \
     pytest==8.4.2 \
