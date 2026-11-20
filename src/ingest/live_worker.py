@@ -38,17 +38,18 @@ logger = logging.getLogger("live_worker")
 groq_pool = GroqPool()
 
 # Verified pool of Webshare residential proxies for automatic failover
+# Top 3 are verified unblocked on YouTube live stream downloads
 WEBSHARE_PROXIES = [
+    "http://vkfhjzqg:e95qnn2d11ml@84.247.60.125:6095",
+    "http://vkfhjzqg:e95qnn2d11ml@64.137.10.153:5803",
+    "http://vkfhjzqg:e95qnn2d11ml@23.26.71.145:5628",
     "http://vkfhjzqg:e95qnn2d11ml@45.38.107.97:6014",
     "http://vkfhjzqg:e95qnn2d11ml@64.137.96.74:6641",
     "http://vkfhjzqg:e95qnn2d11ml@198.23.243.226:6361",
     "http://vkfhjzqg:e95qnn2d11ml@38.154.185.97:6370",
-    "http://vkfhjzqg:e95qnn2d11ml@84.247.60.125:6095",
     "http://vkfhjzqg:e95qnn2d11ml@191.96.254.138:6185",
     "http://vkfhjzqg:e95qnn2d11ml@198.46.161.42:5092",
-    "http://vkfhjzqg:e95qnn2d11ml@64.137.10.153:5803",
     "http://vkfhjzqg:e95qnn2d11ml@104.164.49.38:7693",
-    "http://vkfhjzqg:e95qnn2d11ml@23.26.71.145:5628",
 ]
 
 def get_candidate_proxies() -> List[str]:
@@ -150,7 +151,7 @@ class LiveIngestWorker:
         all_proxies_dead = False
         dead_proxy_count = 0
         if os.path.exists(self.ytdlp_bin) and (url.startswith("http://") or url.startswith("https://")):
-            for p_idx, current_proxy in enumerate(candidate_proxies[:4]):
+            for p_idx, current_proxy in enumerate(candidate_proxies):
                 # Determine auth strategies for this proxy: first with cookies (if any), then without cookies
                 strategies = []
                 if has_cookies:
