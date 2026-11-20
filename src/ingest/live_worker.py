@@ -167,8 +167,9 @@ class LiveIngestWorker:
             logger.info(f"[INGEST] Downloading stream footage [{section_range}] via direct yt-dlp with authenticated cookies...")
             cmd_cookie_direct = [
                 self.ytdlp_bin,
-                "--no-plugin-dirs",
                 "-4",
+                "--extractor-args", "youtubepot-bgutilhttp:base_url=http://127.0.0.1:4416",
+                "--extractor-args", "youtube:player_client=android,web",
                 "--sleep-interval", "1",
                 "--max-sleep-interval", "3",
                 "-f", "bestvideo[height<=1080]+bestaudio/best[height<=1080]/best",
@@ -274,8 +275,9 @@ class LiveIngestWorker:
                     try:
                         cmd_direct = [
                             self.ytdlp_bin,
-                            "--no-plugin-dirs",
                             "-4",
+                            "--extractor-args", "youtubepot-bgutilhttp:base_url=http://127.0.0.1:4416",
+                            "--extractor-args", "youtube:player_client=android,web",
                             "--sleep-interval", "3",
                             "--max-sleep-interval", "7",
                             "-f", "bestvideo[height<=1080]+bestaudio/best[height<=1080]/best",
