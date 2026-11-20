@@ -250,6 +250,19 @@ def diag_ytdlp(url: str = "https://www.youtube.com/watch?v=u1OGXGfOEI0"):
     }
 
 
+@app.get("/api/diag/pot")
+def diag_pot():
+    import urllib.request
+    results = {}
+    for path in ["/", "/ping", "/token", "/get_pot"]:
+        try:
+            req = urllib.request.urlopen(f"http://127.0.0.1:4416{path}", timeout=3)
+            results[path] = {"code": req.getcode(), "body": req.read().decode(errors="replace")}
+        except Exception as e:
+            results[path] = {"error": str(e)}
+    return results
+
+
 
 
 # Mount Rendered Media Files for Web Previews and Direct Downloads
