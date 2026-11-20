@@ -61,7 +61,6 @@ class YouTubeScavenger:
             self.ytdlp_bin,
             f"ytsearch{limit}:{query}",
             "--no-plugin-dirs",
-            "--extractor-args", "youtube:player_client=android,web",
             "--dump-json",
             "--flat-playlist",
             "--no-warnings",
