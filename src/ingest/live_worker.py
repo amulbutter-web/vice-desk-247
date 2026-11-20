@@ -100,7 +100,8 @@ class LiveIngestWorker:
         auth_args = []
         cookies_cand = Path("/tmp/youtube_cookies.txt")
         b64_env = os.getenv("YOUTUBE_COOKIES_BASE64")
-        if b64_env and (not cookies_cand.exists() or cookies_cand.stat().st_size == 0):
+        # Always re-decode from env var to ensure fresh, non-corrupt cookies file
+        if b64_env:
             try:
                 import base64
                 cookies_cand.write_bytes(base64.b64decode(b64_env))

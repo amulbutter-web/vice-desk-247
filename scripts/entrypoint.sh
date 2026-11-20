@@ -17,8 +17,10 @@ fi
 # Decode YOUTUBE_COOKIES_BASE64 if provided in Railway env
 if [ -n "$YOUTUBE_COOKIES_BASE64" ]; then
     echo "[ENTRYPOINT] Detected YOUTUBE_COOKIES_BASE64 — exporting to /tmp/youtube_cookies.txt"
-    echo "$YOUTUBE_COOKIES_BASE64" | base64 -d > /tmp/youtube_cookies.txt || true
+    printf '%s' "$YOUTUBE_COOKIES_BASE64" | base64 -d > /tmp/youtube_cookies.txt || true
     chmod 600 /tmp/youtube_cookies.txt 2>/dev/null || true
+    COOKIE_SIZE=$(wc -c < /tmp/youtube_cookies.txt 2>/dev/null || echo 0)
+    echo "[ENTRYPOINT] Cookies file written: ${COOKIE_SIZE} bytes"
 fi
 
 # Ensure data directories exist
