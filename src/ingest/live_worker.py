@@ -184,18 +184,18 @@ class LiveIngestWorker:
             warp_proxy = local_warp[0] if local_warp else None
 
             # Primary strategies ladder:
-            # 1. WARP proxy + cookies (if WARP active & cookies exist)
-            # 2. Direct connection + cookies (proven 100% working on Railway with bgutil-pot + visionos,ios,web)
-            # 3. WARP proxy without cookies
-            # 4. Direct connection without cookies
+            # 1. Direct connection + cookies (proven fastest & most reliable on Railway with bgutil-pot + visionos,ios,web)
+            # 2. Direct connection without cookies
+            # 3. WARP proxy + cookies (if WARP active)
+            # 4. WARP proxy without cookies
             primary_strategies = []
-            if warp_proxy and has_cookies:
-                primary_strategies.append(["--proxy", warp_proxy, "--cookies", str(cookies_cand)])
             if has_cookies:
                 primary_strategies.append(["--cookies", str(cookies_cand)])
+            primary_strategies.append([])
+            if warp_proxy and has_cookies:
+                primary_strategies.append(["--proxy", warp_proxy, "--cookies", str(cookies_cand)])
             if warp_proxy:
                 primary_strategies.append(["--proxy", warp_proxy])
-            primary_strategies.append([])
 
             for auth_args_primary in primary_strategies:
                 is_cookie = "--cookies" in auth_args_primary

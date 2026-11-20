@@ -33,13 +33,6 @@ RUN curl -fsSL -o /usr/local/bin/bgutil-pot \
     https://github.com/jim60105/bgutil-ytdlp-pot-provider-rs/releases/download/v0.8.1/bgutil-pot-linux-x86_64 \
     && chmod +x /usr/local/bin/bgutil-pot
 
-# Install yt-dlp plugin for bgutil-pot
-RUN mkdir -p /root/.config/yt-dlp/plugins \
-    && curl -fsSL -o /tmp/plugin.zip \
-    https://github.com/jim60105/bgutil-ytdlp-pot-provider-rs/releases/download/v0.8.1/bgutil-ytdlp-pot-provider-rs.zip \
-    && unzip /tmp/plugin.zip -d /root/.config/yt-dlp/plugins/ \
-    && rm /tmp/plugin.zip
-
 # Install wgcf and wireproxy for Cloudflare WARP userspace SOCKS5 bridge (unlimited free bandwidth)
 RUN curl -fsSL -o /usr/local/bin/wgcf \
     https://github.com/ViRb3/wgcf/releases/download/v2.2.26/wgcf_2.2.26_linux_amd64 \
@@ -62,10 +55,18 @@ RUN pip install --no-cache-dir \
     jsonschema>=4.20.0 \
     click>=8.0.0 \
     "yt-dlp[default]" \
-    bgutil-ytdlp-pot-provider \
     starlette==0.41.3 \
     pytest==8.4.2 \
     pytest-asyncio==0.26.0
+
+# Install yt-dlp plugin for bgutil-pot (Rust v0.8.1 matching binary)
+RUN curl -fsSL -o /tmp/plugin.zip \
+    https://github.com/jim60105/bgutil-ytdlp-pot-provider-rs/releases/download/v0.8.1/bgutil-ytdlp-pot-provider-rs.zip \
+    && mkdir -p /root/.config/yt-dlp/plugins \
+    && unzip /tmp/plugin.zip -d /root/.config/yt-dlp/plugins/ \
+    && mkdir -p /usr/local/lib/python3.13/site-packages \
+    && unzip -o /tmp/plugin.zip -d /usr/local/lib/python3.13/site-packages/ \
+    && rm /tmp/plugin.zip
 
 # Copy source code, scripts, and assets
 COPY src/ ./src/
