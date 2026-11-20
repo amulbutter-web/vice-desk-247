@@ -223,6 +223,7 @@ def diag_ytdlp(url: str = "https://www.youtube.com/watch?v=u1OGXGfOEI0"):
     cmd = [
         ytdlp,
         "-v",
+        "--extractor-args", "youtubepot-bgutilhttp:base_url=http://127.0.0.1:4416",
         "--extractor-args", "youtube:player_client=android,web",
         "--skip-download",
     ]
