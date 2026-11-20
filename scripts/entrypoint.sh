@@ -18,7 +18,7 @@ else
     echo "[ENTRYPOINT] WARNING: /usr/local/bin/bgutil-pot not found. Proceeding with standard yt-dlp extractor."
 fi
 
-# Start Cloudflare WARP userspace SOCKS5 proxy via Wireproxy & wgcf (unlimited free bandwidth)
+# Start Cloudflare WARP userspace SOCKS5 & HTTP proxy via Wireproxy & wgcf (unlimited free bandwidth)
 if [ -x /usr/local/bin/wgcf ] && [ -x /usr/local/bin/wireproxy ]; then
     echo "[ENTRYPOINT] Initializing Cloudflare WARP userspace proxy..."
     mkdir -p /app/data/warp
@@ -32,14 +32,27 @@ if [ -x /usr/local/bin/wgcf ] && [ -x /usr/local/bin/wireproxy ]; then
         /usr/local/bin/wgcf generate || true
     fi
     if [ -f "wgcf-profile.conf" ]; then
-        cat <<EOF > wireproxy.conf
-WGConfig = /app/data/warp/wgcf-profile.conf
+        # Optimize for container networking:
+        # Strip IPv6 address and routes to prevent blackholing in IPv4-only cloud networks
+        sed -i 's/, [0-9a-fA-F:]*\/128//g' wgcf-profile.conf || true
+        sed -i 's/, ::\/0//g' wgcf-profile.conf || true
+        # Use direct Cloudflare IPv4 endpoint (bypasses UDP DNS lookup for peer)
+        sed -i 's/engage.cloudflareclient.com:2408/162.159.192.1:2408/g' wgcf-profile.conf || true
+
+        # Append Socks5 and HTTP proxy sections directly to Wireproxy config if missing
+        if ! grep -q "\[Socks5\]" wgcf-profile.conf; then
+            cat <<EOF >> wgcf-profile.conf
 
 [Socks5]
 BindAddress = 127.0.0.1:1080
+
+[HTTP]
+BindAddress = 127.0.0.1:8080
 EOF
-        echo "[ENTRYPOINT] Starting wireproxy SOCKS5 on 127.0.0.1:1080..."
-        /usr/local/bin/wireproxy -c /app/data/warp/wireproxy.conf &
+        fi
+
+        echo "[ENTRYPOINT] Starting wireproxy (SOCKS5 :1080, HTTP :8080)..."
+        /usr/local/bin/wireproxy -c /app/data/warp/wgcf-profile.conf &
         sleep 2
         echo "[ENTRYPOINT] Cloudflare WARP wireproxy started successfully."
     fi

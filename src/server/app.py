@@ -206,7 +206,14 @@ def get_supervisor_hierarchy():
 
 
 @app.get("/api/diag/ytdlp")
-def diag_ytdlp(url: str = "https://www.youtube.com/watch?v=169ZzvPxvvM", use_cookies: bool = True, client: str = "visionos,ios,web"):
+def diag_ytdlp(
+    url: str = "https://www.youtube.com/watch?v=169ZzvPxvvM",
+    use_cookies: bool = True,
+    client: str = "visionos,ios,web",
+    proxy: Optional[str] = None,
+    section: Optional[str] = None,
+    download: bool = False,
+):
     import subprocess, shutil
     ytdlp = shutil.which("yt-dlp") or "yt-dlp"
     
@@ -230,21 +237,49 @@ def diag_ytdlp(url: str = "https://www.youtube.com/watch?v=169ZzvPxvvM", use_coo
     cmd = [
         ytdlp,
         "-v",
+        "-4",
         "--extractor-args", "youtubepot-bgutilhttp:base_url=http://127.0.0.1:4416",
         "--extractor-args", f"youtube:player_client={client}",
-        "--skip-download",
+        "--socket-timeout", "15",
     ]
+    if not download:
+        cmd.append("--skip-download")
+    else:
+        out_file = Path("/app/data/temp/diag_test.mp4")
+        out_file.parent.mkdir(parents=True, exist_ok=True)
+        out_file.unlink(missing_ok=True)
+        cmd.extend([
+            "-f", "bestvideo[height<=1080]+bestaudio/best[height<=1080]/best",
+            "--force-overwrites",
+            "-o", str(out_file),
+        ])
+        if section:
+            cmd.extend(["--download-sections", section])
+
+    if proxy:
+        cmd.extend(["--proxy", proxy])
     if use_cookies and cookie_path.exists() and cookie_path.stat().st_size > 0:
         cmd.extend(["--cookies", str(cookie_path)])
 
     cmd.append(url)
-    res = subprocess.run(cmd, capture_output=True, text=True, errors="replace", timeout=25)
+    res = subprocess.run(cmd, capture_output=True, text=True, errors="replace", timeout=60)
+    
+    download_info = {}
+    if download:
+        test_f = Path("/app/data/temp/diag_test.mp4")
+        download_info = {
+            "downloaded": test_f.exists(),
+            "size_bytes": test_f.stat().st_size if test_f.exists() else 0,
+        }
+
     return {
         "returncode": res.returncode,
         "cookie_file_exists": cookie_path.exists(),
         "cookie_file_size": cookie_path.stat().st_size if cookie_path.exists() else 0,
         "use_cookies": use_cookies,
         "client": client,
+        "proxy": proxy,
+        "download_info": download_info,
         "env_var_present": bool(b64_env),
         "env_var_len": len(b64_env) if b64_env else 0,
         "stdout": res.stdout,
@@ -276,19 +311,58 @@ def diag_pot():
 @app.get("/api/diag/warp")
 def diag_warp():
     import subprocess
+    output = {}
+    profile_path = Path("/app/data/warp/wgcf-profile.conf")
+    if profile_path.exists():
+        lines = []
+        for line in profile_path.read_text().splitlines():
+            if "PrivateKey" in line:
+                lines.append("PrivateKey = [REDACTED]")
+            else:
+                lines.append(line)
+        output["profile"] = "\n".join(lines)
+    
+    # Direct trace (baseline)
     try:
-        res = subprocess.run(
-            ["curl", "-s", "--proxy", "socks5h://127.0.0.1:1080", "https://www.cloudflare.com/cdn-cgi/trace"],
-            capture_output=True, text=True, timeout=8
+        res_dir = subprocess.run(
+            ["curl", "-s", "--max-time", "4", "https://www.cloudflare.com/cdn-cgi/trace"],
+            capture_output=True, text=True, timeout=5
         )
-        return {
-            "status": "ok" if res.returncode == 0 else "failed",
-            "returncode": res.returncode,
-            "trace": res.stdout,
-            "error": res.stderr
+        output["direct_trace"] = res_dir.stdout
+    except Exception as de:
+        output["direct_trace"] = f"error: {de}"
+
+    # Test HTTP proxy (:8080)
+    try:
+        res_http = subprocess.run(
+            ["curl", "-s", "--max-time", "5", "--proxy", "http://127.0.0.1:8080", "https://www.cloudflare.com/cdn-cgi/trace"],
+            capture_output=True, text=True, timeout=6
+        )
+        output["http_proxy_8080"] = {
+            "status": "ok" if res_http.returncode == 0 else "failed",
+            "returncode": res_http.returncode,
+            "trace": res_http.stdout,
+            "error": res_http.stderr,
         }
     except Exception as e:
-        return {"status": "error", "error": str(e)}
+        output["http_proxy_8080"] = {"status": "error", "error": str(e)}
+
+    # Test SOCKS5 proxy (:1080)
+    try:
+        res_socks = subprocess.run(
+            ["curl", "-s", "--max-time", "5", "--proxy", "socks5://127.0.0.1:1080", "https://www.cloudflare.com/cdn-cgi/trace"],
+            capture_output=True, text=True, timeout=6
+        )
+        output["socks5_proxy_1080"] = {
+            "status": "ok" if res_socks.returncode == 0 else "failed",
+            "returncode": res_socks.returncode,
+            "trace": res_socks.stdout,
+            "error": res_socks.stderr,
+        }
+    except Exception as e:
+        output["socks5_proxy_1080"] = {"status": "error", "error": str(e)}
+
+    return output
 
 
 

@@ -59,17 +59,20 @@ def get_candidate_proxies() -> List[str]:
         return []
     
     pool = []
-    # Priority 1: Cloudflare WARP wireproxy SOCKS5 bridge on localhost:1080
-    warp_proxy = "socks5://127.0.0.1:1080"
-    try:
-        import socket
-        s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        s.settimeout(0.3)
-        if s.connect_ex(("127.0.0.1", 1080)) == 0:
-            pool.append(warp_proxy)
-        s.close()
-    except Exception:
-        pass
+    # Priority 1: Cloudflare WARP local bridge (port 8080 HTTP, port 1080 SOCKS5)
+    import socket
+    for p_addr, p_url in [
+        (("127.0.0.1", 8080), "http://127.0.0.1:8080"),
+        (("127.0.0.1", 1080), "socks5://127.0.0.1:1080"),
+    ]:
+        try:
+            s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+            s.settimeout(0.3)
+            if s.connect_ex(p_addr) == 0:
+                pool.append(p_url)
+            s.close()
+        except Exception:
+            pass
 
     if primary and primary not in pool:
         pool.insert(0, primary)
@@ -177,19 +180,35 @@ class LiveIngestWorker:
 
         # 3. Primary Method: Direct yt-dlp slice with visionos,ios,web and bgutil-pot (via Cloudflare WARP if active)
         if os.path.exists(self.ytdlp_bin) and (url.startswith("http://") or url.startswith("https://")):
-            warp_arg = ["--proxy", "socks5://127.0.0.1:1080"] if ("socks5://127.0.0.1:1080" in candidate_proxies) else []
-            primary_strategies = (
-                [[*warp_arg, "--cookies", str(cookies_cand)]] if has_cookies else []
-            ) + ([warp_arg] if warp_arg else []) + [[]]
+            local_warp = [p for p in candidate_proxies if "127.0.0.1" in p]
+            warp_proxy = local_warp[0] if local_warp else None
+
+            # Primary strategies ladder:
+            # 1. WARP proxy + cookies (if WARP active & cookies exist)
+            # 2. Direct connection + cookies (proven 100% working on Railway with bgutil-pot + visionos,ios,web)
+            # 3. WARP proxy without cookies
+            # 4. Direct connection without cookies
+            primary_strategies = []
+            if warp_proxy and has_cookies:
+                primary_strategies.append(["--proxy", warp_proxy, "--cookies", str(cookies_cand)])
+            if has_cookies:
+                primary_strategies.append(["--cookies", str(cookies_cand)])
+            if warp_proxy:
+                primary_strategies.append(["--proxy", warp_proxy])
+            primary_strategies.append([])
+
             for auth_args_primary in primary_strategies:
                 is_cookie = "--cookies" in auth_args_primary
-                is_warp = "--proxy" in auth_args_primary
-                logger.info(f"[INGEST] Downloading stream footage [{section_range}] via direct yt-dlp (warp={'yes' if is_warp else 'no'}, cookies={'yes' if is_cookie else 'no'})...")
+                is_proxy = "--proxy" in auth_args_primary
+                proxy_label = [auth_args_primary[i+1] for i, a in enumerate(auth_args_primary) if a == "--proxy"]
+                proxy_str = proxy_label[0] if proxy_label else "direct"
+                logger.info(f"[INGEST] Downloading stream footage [{section_range}] via yt-dlp ({proxy_str}, cookies={'yes' if is_cookie else 'no'})...")
                 cmd_cookie_direct = [
                     self.ytdlp_bin,
                     "-4",
                     "--extractor-args", "youtubepot-bgutilhttp:base_url=http://127.0.0.1:4416",
                     "--extractor-args", "youtube:player_client=visionos,ios,web",
+                    "--socket-timeout", "15",
                     "--sleep-interval", "1",
                     "--max-sleep-interval", "3",
                     "-f", "bestvideo[height<=1080]+bestaudio/best[height<=1080]/best",
@@ -208,15 +227,15 @@ class LiveIngestWorker:
                             wait = _YTDLP_MIN_INTERVAL_SEC - elapsed
                             time.sleep(wait)
                         _ytdlp_last_call_time = time.monotonic()
-                        res_cookie = subprocess.run(cmd_cookie_direct, capture_output=True, text=True, errors="replace", timeout=180)
+                        res_cookie = subprocess.run(cmd_cookie_direct, capture_output=True, text=True, errors="replace", timeout=120)
                     if res_cookie.returncode == 0 and target_file.exists() and target_file.stat().st_size > 500_000:
                         probe_check = self.probe.probe(str(target_file))
                         if probe_check.get("has_video") and probe_check.get("duration_ms", 0) > 10_000:
-                            logger.info(f"[INGEST] Direct capture SUCCESS (cookies={'yes' if is_cookie else 'no'}): {target_file} ({target_file.stat().st_size / (1024*1024):.2f} MB)")
+                            logger.info(f"[INGEST] Direct capture SUCCESS ({proxy_str}, cookies={'yes' if is_cookie else 'no'}): {target_file} ({target_file.stat().st_size / (1024*1024):.2f} MB)")
                             return target_file
                     else:
                         err_snip = (res_cookie.stderr or '')[-250:]
-                        logger.warning(f"[INGEST] Direct slice (cookies={'yes' if is_cookie else 'no'}) returned code {res_cookie.returncode}: {err_snip}")
+                        logger.warning(f"[INGEST] Direct slice ({proxy_str}, cookies={'yes' if is_cookie else 'no'}) returned code {res_cookie.returncode}: {err_snip}")
                         if is_cookie and any(sig in err_snip for sig in ["cookies are no longer valid", "confirm you're not a bot", "confirm you’re not a bot", "LOGIN_REQUIRED"]):
                             has_cookies = False
                             continue

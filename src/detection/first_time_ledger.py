@@ -365,17 +365,31 @@ class FirstTimeLedger:
         Guarantees already published events are never picked up.
         CIRCUIT BREAKER: Events that fail 5+ times consecutively are permanently parked."""
         with get_db_session() as session:
-            # Self-healing: Unstick stale PROCESSING events older than 15 minutes
+            # Self-healing: Unstick stale PROCESSING events where processing started > 15 minutes ago
             try:
                 stale_cutoff = datetime.now(timezone.utc) - timedelta(minutes=15)
-                stale_events = session.query(FirstTimeEvent).filter(
-                    FirstTimeEvent.status == "PROCESSING",
-                    FirstTimeEvent.created_at_utc < stale_cutoff
-                ).all()
-                for st in stale_events:
-                    st.status = "SCHEDULED"
-                    logger.info(f"[FIRST_TIME_LEDGER] Self-healing: Reset stale PROCESSING event '{st.headline}'")
-                if stale_events:
+                processing_candidates = session.query(FirstTimeEvent).filter_by(status="PROCESSING").all()
+                stale_count = 0
+                for st in processing_candidates:
+                    meta = st.metadata_json or {}
+                    started_at_str = meta.get("_processing_started_at")
+                    is_stale = False
+                    if started_at_str:
+                        try:
+                            started_at = datetime.fromisoformat(started_at_str)
+                            if started_at < stale_cutoff:
+                                is_stale = True
+                        except Exception:
+                            pass
+                    elif st.created_at_utc and st.created_at_utc < stale_cutoff:
+                        # Fallback only if no _processing_started_at exists
+                        is_stale = True
+
+                    if is_stale:
+                        st.status = "SCHEDULED"
+                        stale_count += 1
+                        logger.info(f"[FIRST_TIME_LEDGER] Self-healing: Reset stale PROCESSING event '{st.headline}'")
+                if stale_count > 0:
                     session.commit()
             except Exception as _stuck_err:
                 logger.debug(f"[FIRST_TIME_LEDGER] Stale reset note: {_stuck_err}")
@@ -393,6 +407,9 @@ class FirstTimeLedger:
                 
                 # Atomically mark PROCESSING so no other worker picks up this event simultaneously
                 cand.status = "PROCESSING"
+                cand_meta = dict(cand.metadata_json or {})
+                cand_meta["_processing_started_at"] = datetime.now(timezone.utc).isoformat()
+                cand.metadata_json = cand_meta
                 session.commit()
 
                 return {
@@ -429,6 +446,9 @@ class FirstTimeLedger:
                     continue
                 # Safe to retry — mark PROCESSING atomically
                 cand.status = "PROCESSING"
+                cand_meta = dict(cand.metadata_json or {})
+                cand_meta["_processing_started_at"] = datetime.now(timezone.utc).isoformat()
+                cand.metadata_json = cand_meta
                 session.commit()
                 logger.info(f"[FIRST_TIME_LEDGER] Self-healing retry (attempt {fail_count+1}/{self.MAX_CONSECUTIVE_FAILURES}): {cand.headline}")
                 return {
