@@ -485,7 +485,7 @@ class ChiefSupervisorAgent:
 
     def _pipeline_worker_loop(self, worker_id: int):
         logger.info(f"[WORKER-{worker_id}] Parallel pipeline online and attached to Ledger backlog.")
-        time.sleep(worker_id * 5)  # Stagger initial worker starts to smooth resource footprint
+        time.sleep(worker_id * 30)  # Stagger initial worker starts by 30s each — prevents simultaneous YouTube hammering
         consecutive_failures = 0
         MAX_CONSECUTIVE_BEFORE_BACKOFF = 5   # After 5 fails, slow down to 5min sleep
         MAX_CONSECUTIVE_BEFORE_PAUSE = 15    # After 15 fails, pause 30min (systematic block)
@@ -568,8 +568,8 @@ class ChiefSupervisorAgent:
                             self.ledger.update_event_status(event_id, "FAILED", None)
                     consecutive_failures += 1
 
-                # Cadence sleep between cycles per worker (keeping overall cadence at 15-20 min)
-                time.sleep(30)
+                # Cadence sleep between cycles per worker — stagger prevents 3 workers hitting YouTube simultaneously
+                time.sleep(60 + (worker_id * 20))  # Worker 1: 60s, Worker 2: 80s, Worker 3: 100s cadence
 
             except Exception as e:
                 logger.error(f"[WORKER-{worker_id}] Unhandled error: {e}", exc_info=True)

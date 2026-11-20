@@ -9,6 +9,8 @@ import shutil
 import subprocess
 import uuid
 import logging
+import threading
+import time
 from pathlib import Path
 from typing import Dict, Any, Optional
 
@@ -34,6 +36,12 @@ from src.db.database import init_db
 
 logger = logging.getLogger("live_worker")
 groq_pool = GroqPool()
+
+# Global rate-limiter: only 1 yt-dlp process runs at a time across all workers
+# Prevents 3 workers simultaneously hammering YouTube's rate-limit detection
+_ytdlp_global_lock = threading.Semaphore(1)
+_ytdlp_last_call_time: float = 0.0
+_YTDLP_MIN_INTERVAL_SEC = 8  # Minimum 8 seconds between any two yt-dlp calls globally
 
 
 class LiveIngestWorker:
@@ -117,9 +125,9 @@ class LiveIngestWorker:
                     self.ytdlp_bin,
                     "-4",
                     "--extractor-args", "youtubepot-bgutilhttp:base_url=http://127.0.0.1:4416",
-                    "--extractor-args", "youtube:player_client=android,web",
-                    "--sleep-interval", "2",
-                    "--max-sleep-interval", "4",
+                    "--extractor-args", "youtube:player_client=mweb,android,web",
+                    "--sleep-interval", "5",
+                    "--max-sleep-interval", "10",
                     "-f", "best[height<=1080]/bestvideo[height<=1080]+bestaudio/best",
                     "--download-sections", section_range,
                     "--force-overwrites",
@@ -127,7 +135,16 @@ class LiveIngestWorker:
                     "--no-warnings",
                     "-o", str(target_file),
                 ] + auth_args + [url]
-                res_nat = subprocess.run(cmd_native, capture_output=True, text=True, timeout=180)
+                # Acquire global rate-limiter to serialize yt-dlp calls across workers
+                global _ytdlp_last_call_time
+                with _ytdlp_global_lock:
+                    elapsed = time.monotonic() - _ytdlp_last_call_time
+                    if elapsed < _YTDLP_MIN_INTERVAL_SEC:
+                        wait = _YTDLP_MIN_INTERVAL_SEC - elapsed
+                        logger.info(f"[RateGuard] Throttling yt-dlp — waiting {wait:.1f}s before next call")
+                        time.sleep(wait)
+                    _ytdlp_last_call_time = time.monotonic()
+                    res_nat = subprocess.run(cmd_native, capture_output=True, text=True, timeout=180)
                 if res_nat.returncode == 0 and target_file.exists() and target_file.stat().st_size > 500_000:
                     try:
                         probe_check = self.probe.probe(str(target_file))
@@ -152,14 +169,20 @@ class LiveIngestWorker:
                     self.ytdlp_bin,
                     "-4",
                     "--extractor-args", "youtubepot-bgutilhttp:base_url=http://127.0.0.1:4416",
-                    "--extractor-args", "youtube:player_client=android,web",
-                    "--sleep-interval", "2",
-                    "--max-sleep-interval", "4",
+                    "--extractor-args", "youtube:player_client=mweb,android,web",
+                    "--sleep-interval", "5",
+                    "--max-sleep-interval", "10",
                     "-g",
                     "-f", "best[height<=1080]/bestvideo[height<=1080]+bestaudio/best",
                     "--no-warnings",
                 ] + auth_args + [url]
-                res_g = subprocess.run(cmd_g, capture_output=True, text=True, timeout=25)
+                # Acquire rate-limiter for fallback call too
+                with _ytdlp_global_lock:
+                    elapsed = time.monotonic() - _ytdlp_last_call_time
+                    if elapsed < _YTDLP_MIN_INTERVAL_SEC:
+                        time.sleep(_YTDLP_MIN_INTERVAL_SEC - elapsed)
+                    _ytdlp_last_call_time = time.monotonic()
+                    res_g = subprocess.run(cmd_g, capture_output=True, text=True, timeout=25)
                 if res_g.returncode == 0 and res_g.stdout.strip():
                     stream_urls = res_g.stdout.strip().splitlines()
                     if len(stream_urls) >= 2:
