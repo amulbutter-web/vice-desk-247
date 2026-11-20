@@ -61,7 +61,7 @@ class YouTubeScavenger:
             self.ytdlp_bin,
             f"ytsearch{limit}:{query}",
             "--extractor-args", "youtubepot-bgutilhttp:base_url=http://127.0.0.1:4416",
-            "--extractor-args", "youtube:player_client=android,web",
+            "--extractor-args", "youtube:player_client=visionos,ios,web",
             "--dump-json",
             "--flat-playlist",
             "--no-warnings",

@@ -319,7 +319,7 @@ class StreamScoutAgent:
             if cookies_cand.exists() and cookies_cand.stat().st_size > 0:
                 auth_args.extend(["--cookies", str(cookies_cand)])
 
-            cmd = ["yt-dlp", "--extractor-args", "youtubepot-bgutilhttp:base_url=http://127.0.0.1:4416", "--extractor-args", "youtube:player_client=android,web", "--dump-json", "--skip-download", "--no-warnings"] + auth_args + [url]
+            cmd = ["yt-dlp", "--extractor-args", "youtubepot-bgutilhttp:base_url=http://127.0.0.1:4416", "--extractor-args", "youtube:player_client=visionos,ios,web", "--dump-json", "--skip-download", "--no-warnings"] + auth_args + [url]
             res = subprocess.run(cmd, capture_output=True, text=True, errors="replace", timeout=15)
             if res.returncode == 0:
                 data = json.loads(res.stdout)
