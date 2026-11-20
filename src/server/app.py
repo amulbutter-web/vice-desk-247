@@ -77,7 +77,7 @@ app.add_middleware(
 PUBLIC_PAGES = {"/privacy", "/privacy-policy", "/terms", "/terms-of-service", "/data-deletion",
                 "/deletion", "/app_icon.png", "/icon.png", "/api/health",
                 "/api/daemon/status", "/api/accounts/instagram/status", "/api/supervisor/directive", "/api/diag/ytdlp",
-                "/api/supervisor/hierarchy"}
+                "/api/diag/pot", "/api/supervisor/hierarchy"}
 WEBHOOK_PATHS = {prefix + path for prefix in ("", "/api")
                  for path in ("/webhooks/instagram", "/webhook/instagram")}
 
