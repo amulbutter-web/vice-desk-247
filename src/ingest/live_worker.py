@@ -116,12 +116,9 @@ class LiveIngestWorker:
                 cmd_native = [
                     self.ytdlp_bin,
                     "-4",
-                    "--extractor-args", "youtubepot-bgutilhttp:base_url=http://127.0.0.1:4416",
-                    "--extractor-args", "youtubepot-bgutilcli:cli_path=/usr/local/bin/bgutil-pot",
-                    "--extractor-args", "youtube:player_client=tv_embedded,android_vr,android_creator",
+                    "--extractor-args", "youtube:player_client=android,web",
                     "-f", "best[height<=1080]/bestvideo[height<=1080]+bestaudio/best",
                     "--download-sections", section_range,
-                    "--js-runtimes", "deno,node",
                     "--force-overwrites",
                     "--no-playlist",
                     "--no-warnings",
@@ -151,12 +148,9 @@ class LiveIngestWorker:
                 cmd_g = [
                     self.ytdlp_bin,
                     "-4",
-                    "--extractor-args", "youtubepot-bgutilhttp:base_url=http://127.0.0.1:4416",
-                    "--extractor-args", "youtubepot-bgutilcli:cli_path=/usr/local/bin/bgutil-pot",
-                    "--extractor-args", "youtube:player_client=tv_embedded,android_vr,android_creator",
+                    "--extractor-args", "youtube:player_client=android,web",
                     "-g",
                     "-f", "best[height<=1080]/bestvideo[height<=1080]+bestaudio/best",
-                    "--js-runtimes", "deno,node",
                     "--no-warnings",
                 ] + auth_args + [url]
                 res_g = subprocess.run(cmd_g, capture_output=True, text=True, timeout=25)

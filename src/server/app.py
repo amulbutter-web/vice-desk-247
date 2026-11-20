@@ -223,9 +223,7 @@ def diag_ytdlp(url: str = "https://www.youtube.com/watch?v=u1OGXGfOEI0"):
     cmd = [
         ytdlp,
         "-v",
-        "--extractor-args", "youtubepot-bgutilhttp:base_url=http://127.0.0.1:4416",
-        "--extractor-args", "youtubepot-bgutilcli:cli_path=/usr/local/bin/bgutil-pot",
-        "--extractor-args", "youtube:player_client=tv_embedded,android_vr,android_creator",
+        "--extractor-args", "youtube:player_client=android,web",
         "--skip-download",
     ]
     if cookie_path.exists() and cookie_path.stat().st_size > 0:

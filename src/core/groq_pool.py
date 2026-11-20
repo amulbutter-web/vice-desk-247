@@ -2,10 +2,12 @@
 Groq Multi-Agent LLM Pool & Key Rotator.
 Distributes requests across 4 high-speed Groq API keys with automatic failover,
 model fallback, and role specialization (Scout, Hook Writer, Copywriter, Editorial Judge).
+Includes per-key 429 cooldown tracking and exponential backoff to prevent rate limit hammering.
 """
 import urllib.request
 import json
 import logging
+import time
 from typing import List, Dict, Any, Optional
 
 import os
@@ -58,12 +60,28 @@ PREFERRED_MODELS = [
 
 
 class GroqPool:
+    # Per-key 429 cooldown: key_index -> epoch_time when it becomes available again
+    _key_cooldowns: Dict[int, float] = {}
+    # Cooldown duration on 429: 90 seconds per key
+    _KEY_COOLDOWN_SEC = 90
+
     def __init__(self, keys: Optional[List[str]] = None):
         self.keys = keys or load_groq_keys()
         self.endpoint = "https://api.groq.com/openai/v1/chat/completions"
         self._user_agent = (
             "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
         )
+
+    def _is_key_available(self, k_idx: int) -> bool:
+        """Check if a key is off cooldown and usable."""
+        cooldown_until = self.__class__._key_cooldowns.get(k_idx, 0)
+        return time.time() >= cooldown_until
+
+    def _mark_key_cooldown(self, k_idx: int):
+        """Mark a key as rate-limited for _KEY_COOLDOWN_SEC seconds."""
+        until = time.time() + self._KEY_COOLDOWN_SEC
+        self.__class__._key_cooldowns[k_idx] = until
+        logger.warning(f"[GroqPool] Key {k_idx+1} rate-limited (429) — cooling down for {self._KEY_COOLDOWN_SEC}s")
 
     def generate_chat(
         self,
@@ -74,14 +92,24 @@ class GroqPool:
     ) -> str:
         """
         Executes chat completion with role-affinity key routing and automatic failover.
+        Skips keys that are on 429 cooldown. Applies exponential backoff on persistent 429.
         """
+        if not self.keys:
+            raise RuntimeError("No Groq API keys configured.")
+
         start_key_idx = AGENT_KEY_MAP.get(agent_role, 0) % len(self.keys)
-        
+
         # Try preferred key first, then rotate through others on failure
         for offset in range(len(self.keys)):
             k_idx = (start_key_idx + offset) % len(self.keys)
+
+            # Skip keys still on 429 cooldown
+            if not self._is_key_available(k_idx):
+                logger.debug(f"[GroqPool] Skipping key {k_idx+1} (on 429 cooldown)")
+                continue
+
             key = self.keys[k_idx]
-            
+
             for model in PREFERRED_MODELS:
                 headers = {
                     "Authorization": f"Bearer {key}",
@@ -103,7 +131,7 @@ class GroqPool:
                 )
 
                 try:
-                    with urllib.request.urlopen(req, timeout=8) as resp:
+                    with urllib.request.urlopen(req, timeout=10) as resp:
                         data = json.loads(resp.read().decode("utf-8"))
                         msg = data["choices"][0]["message"]
                         content = (msg.get("content") or "").strip()
@@ -111,11 +139,22 @@ class GroqPool:
                             content = (msg.get("reasoning") or "").strip()
                         if content:
                             return content
+                except urllib.error.HTTPError as http_err:
+                    if http_err.code == 429:
+                        # Rate limited — cool this key down, try next
+                        self._mark_key_cooldown(k_idx)
+                        break  # break model loop, try next key
+                    elif http_err.code in (400, 404):
+                        logger.warning(f"[GroqPool] Model {model} unavailable on key {k_idx+1} (HTTP {http_err.code}) — trying next model")
+                        continue
+                    else:
+                        logger.warning(f"[GroqPool] HTTP {http_err.code} on key {k_idx+1} model {model}: {http_err}")
+                        continue
                 except Exception as e:
-                    logger.warning(f"Groq call failed on key {k_idx+1} with model {model}: {e}")
+                    logger.warning(f"[GroqPool] Call failed on key {k_idx+1} model {model}: {e}")
                     continue
 
-        raise RuntimeError("All Groq keys and models failed or timed out.")
+        raise RuntimeError("All Groq keys exhausted or rate-limited. Pipeline will use pre-computed fallback hooks.")
 
     def generate_viral_hook(self, creator_name: str, game: str, context_notes: str = "", agent_role: str = "A06_HOOK") -> str:
         """A06 Agent: Generates ultra-punchy 3-5 word scroll-stopping ASS subtitle hook."""

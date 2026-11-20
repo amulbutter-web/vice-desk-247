@@ -356,16 +356,23 @@ class FirstTimeLedger:
                 for e in events
             ]
 
+    MAX_CONSECUTIVE_FAILURES = 5  # After this many failures, event goes to FAILED_PERMANENT
+
     def get_next_scheduled_event(self) -> Optional[Dict[str, Any]]:
         """Pulls the highest-priority SCHEDULED event from the database.
-        Automatically retries high-priority curated events if any transient failures occurred.
-        Guarantees already published events are never picked up."""
+        Automatically retries high-priority curated events ONLY if failure count < MAX_CONSECUTIVE_FAILURES.
+        Guarantees already published events are never picked up.
+        CIRCUIT BREAKER: Events that fail 5+ times consecutively are permanently parked."""
         with get_db_session() as session:
             candidates = session.query(FirstTimeEvent).filter_by(status="SCHEDULED").order_by(FirstTimeEvent.priority.desc(), FirstTimeEvent.created_at_utc.asc()).all()
             for cand in candidates:
                 # If already published has media_id in metadata, mark published and skip
                 if cand.metadata_json and cand.metadata_json.get("media_id"):
                     cand.status = "PUBLISHED"
+                    continue
+                # Skip events that have been permanently failed
+                if cand.metadata_json and cand.metadata_json.get("_perm_failed"):
+                    cand.status = "FAILED_PERMANENT"
                     continue
                 return {
                     "id": cand.id,
@@ -379,7 +386,8 @@ class FirstTimeLedger:
                     "metadata": cand.metadata_json or {},
                 }
 
-            # Automatic recovery: retry curated events (priority >= 70) that failed due to previous network blocks
+            # Automatic recovery: retry curated events (priority >= 70) that failed due to previous transient errors
+            # BUT only if failure count is below threshold (circuit breaker)
             failed_candidates = session.query(FirstTimeEvent).filter(
                 FirstTimeEvent.status == "FAILED",
                 FirstTimeEvent.priority >= 70
@@ -388,8 +396,20 @@ class FirstTimeLedger:
                 if cand.metadata_json and cand.metadata_json.get("media_id"):
                     cand.status = "PUBLISHED"
                     continue
+                # CIRCUIT BREAKER: Check consecutive failure count
+                meta = cand.metadata_json or {}
+                fail_count = meta.get("_consecutive_failures", 0)
+                if fail_count >= self.MAX_CONSECUTIVE_FAILURES:
+                    # Park this event permanently — systematic failure (YouTube blocked, all API keys dead)
+                    logger.warning(f"[FIRST_TIME_LEDGER] CIRCUIT BREAKER: Event '{cand.headline}' failed {fail_count}x — parked as FAILED_PERMANENT")
+                    new_meta = dict(meta)
+                    new_meta["_perm_failed"] = True
+                    cand.metadata_json = new_meta
+                    cand.status = "FAILED_PERMANENT"
+                    continue
+                # Safe to retry
                 cand.status = "SCHEDULED"
-                logger.info(f"[FIRST_TIME_LEDGER] Retrying curated event after transient failure: {cand.headline}")
+                logger.info(f"[FIRST_TIME_LEDGER] Retrying curated event (attempt {fail_count+1}/{self.MAX_CONSECUTIVE_FAILURES}): {cand.headline}")
                 return {
                     "id": cand.id,
                     "creator": cand.creator,
@@ -404,11 +424,24 @@ class FirstTimeLedger:
         return None
 
     def update_event_status(self, event_id: str, status: str, clip_path: Optional[str] = None):
-        """Updates event status in database (e.g. RENDERED, PUBLISHED)."""
+        """Updates event status in database (e.g. RENDERED, PUBLISHED).
+        Tracks consecutive failures for the circuit breaker."""
         with get_db_session() as session:
             ev = session.query(FirstTimeEvent).filter_by(id=event_id).first()
             if ev:
                 ev.status = status
                 if clip_path:
                     ev.rendered_clip_path = clip_path
+                # Track consecutive failures for circuit breaker
+                meta = dict(ev.metadata_json or {})
+                if status == "FAILED":
+                    meta["_consecutive_failures"] = meta.get("_consecutive_failures", 0) + 1
+                    ev.metadata_json = meta
+                    fail_count = meta["_consecutive_failures"]
+                    logger.info(f"[FIRST_TIME_LEDGER] Event {event_id} failed (attempt #{fail_count}). Circuit breaker triggers at {self.MAX_CONSECUTIVE_FAILURES}.")
+                elif status == "PUBLISHED":
+                    # Reset failure counter on success
+                    meta.pop("_consecutive_failures", None)
+                    meta.pop("_perm_failed", None)
+                    ev.metadata_json = meta
                 logger.info(f"[FIRST_TIME_LEDGER] Event {event_id} status updated to {status}")

@@ -280,8 +280,14 @@ class ContentStrategyAndAnalyticsSupervisor:
         # Step 1: Trend opportunity evaluation
         trend_eval = self.scout.evaluate_trend_opportunity(creator, headline)
         
-        # Step 2: Hook creation
-        hook = selector.craft_viral_hook(creator, headline)
+        # Step 2: Use pre-computed viral_hook from ledger (avoids Groq call when keys are rate-limited)
+        # Only call Groq if the ledger hook is missing or empty
+        pre_hook = event.get("viral_hook", "").strip()
+        if pre_hook:
+            hook = pre_hook
+            logger.info(f"[ContentSupervisor] Using pre-computed ledger hook for {creator}: {hook}")
+        else:
+            hook = selector.craft_viral_hook(creator, headline)
         
         # Step 3: Format clean high-conversion metadata
         title = f"{headline} #Shorts #GTA6"
@@ -480,11 +486,25 @@ class ChiefSupervisorAgent:
     def _pipeline_worker_loop(self, worker_id: int):
         logger.info(f"[WORKER-{worker_id}] Parallel pipeline online and attached to Ledger backlog.")
         time.sleep(worker_id * 5)  # Stagger initial worker starts to smooth resource footprint
+        consecutive_failures = 0
+        MAX_CONSECUTIVE_BEFORE_BACKOFF = 5   # After 5 fails, slow down to 5min sleep
+        MAX_CONSECUTIVE_BEFORE_PAUSE = 15    # After 15 fails, pause 30min (systematic block)
 
         while self.running:
             if settings.emergency_kill_switch:
                 time.sleep(30)
                 continue
+
+            # Circuit breaker: exponential backoff on consecutive failures
+            if consecutive_failures >= MAX_CONSECUTIVE_BEFORE_PAUSE:
+                logger.error(f"[WORKER-{worker_id}] CIRCUIT BREAKER: {consecutive_failures} consecutive failures — sleeping 30min to allow YouTube/Groq recovery")
+                time.sleep(1800)
+                consecutive_failures = 0
+                continue
+            elif consecutive_failures >= MAX_CONSECUTIVE_BEFORE_BACKOFF:
+                backoff = min(300, 60 * (consecutive_failures - MAX_CONSECUTIVE_BEFORE_BACKOFF + 1))
+                logger.warning(f"[WORKER-{worker_id}] Backoff active ({consecutive_failures} fails) — sleeping {backoff}s")
+                time.sleep(backoff)
 
             try:
                 # 1. Fetch next candidate event from the 2-day backlog or scavenger
@@ -526,6 +546,7 @@ class ChiefSupervisorAgent:
                     with self._lock:
                         if event_id:
                             self.ledger.update_event_status(event_id, "FAILED", None)
+                    consecutive_failures += 1
                     time.sleep(15)
                     continue
 
@@ -539,17 +560,20 @@ class ChiefSupervisorAgent:
                         self.last_publish_time = datetime.now(timezone.utc)
                         if event_id:
                             self.ledger.update_event_status(event_id, "PUBLISHED", production_res.get("video_path"))
-                    logger.info(f"[WORKER-{worker_id}] SUCCESS! Total published today: {self.total_published}")
+                    consecutive_failures = 0  # Reset circuit breaker on success
+                    logger.info(f"[WORKER-{worker_id}] ✅ SUCCESS! Total published today: {self.total_published}")
                 else:
                     with self._lock:
                         if event_id:
                             self.ledger.update_event_status(event_id, "FAILED", None)
+                    consecutive_failures += 1
 
                 # Cadence sleep between cycles per worker (keeping overall cadence at 15-20 min)
                 time.sleep(30)
 
             except Exception as e:
                 logger.error(f"[WORKER-{worker_id}] Unhandled error: {e}", exc_info=True)
+                consecutive_failures += 1
                 time.sleep(20)
 
     def get_hierarchy_telemetry(self) -> Dict[str, Any]:
