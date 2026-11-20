@@ -184,12 +184,13 @@ class LiveIngestWorker:
                 import base64, re
                 clean = re.sub(r'[^A-Za-z0-9+/=]', '', b64_env)
                 decoded = base64.b64decode(clean)
+                decoded.decode('utf-8')  # Strict UTF-8 validation
                 if len(decoded) > 500:
                     temp_cookies = temp_dir / f"cookies_{uuid.uuid4().hex[:8]}.txt"
                     temp_cookies.write_bytes(decoded)
                     temp_cookies.chmod(0o600)
             except Exception as _ce:
-                logger.warning(f"Failed to decode YOUTUBE_COOKIES_BASE64: {_ce}")
+                logger.warning(f"[INGEST] Failed to validate YOUTUBE_COOKIES_BASE64: {_ce} — falling back to repository cookies")
 
         if not temp_cookies or not temp_cookies.exists():
             for cand in [Path("/app/data/youtube_cookies.txt"), Path("data/youtube_cookies.txt"), Path("/tmp/youtube_cookies.txt")]:

@@ -249,6 +249,7 @@ def diag_ytdlp(
             try:
                 clean = re.sub(r'[^A-Za-z0-9+/=]', '', b64_env)
                 decoded = base64.b64decode(clean)
+                decoded.decode('utf-8')  # Strict UTF-8 validation
                 if len(decoded) > 500:
                     temp_dir = Path("/tmp") if Path("/tmp").exists() else Path("data/temp")
                     temp_dir.mkdir(parents=True, exist_ok=True)

@@ -31,19 +31,26 @@ if [ -x /usr/local/bin/wireproxy ] && [ "${ENABLE_WARP:-0}" = "1" ]; then
     fi
 fi
 
-# Prepare cookies: prioritize fresh decoding from YOUTUBE_COOKIES_BASE64 to overwrite any stale disk state
+# Prepare cookies: decode and VALIDATE YOUTUBE_COOKIES_BASE64, otherwise keep pristine repo file
+VALID_COOKIES=0
 if [ -n "$YOUTUBE_COOKIES_BASE64" ]; then
-    echo "[ENTRYPOINT] Detected YOUTUBE_COOKIES_BASE64 — initializing fresh cookies..."
-    python3 -c "import os, base64, re; raw = os.getenv('YOUTUBE_COOKIES_BASE64', ''); clean = re.sub(r'[^A-Za-z0-9+/=]', '', raw); data = base64.b64decode(clean) if clean else b''; open('/app/data/youtube_cookies.txt', 'wb').write(data) if data else None; open('/tmp/youtube_cookies.txt', 'wb').write(data) if data else None" || true
-    chmod 600 /app/data/youtube_cookies.txt /tmp/youtube_cookies.txt 2>/dev/null || true
-    COOKIE_SIZE=$(wc -c < /app/data/youtube_cookies.txt 2>/dev/null || echo 0)
-    echo "[ENTRYPOINT] Pristine cookies written from env: ${COOKIE_SIZE} bytes"
-elif [ -f "/app/data/youtube_cookies.txt" ] && [ -s "/app/data/youtube_cookies.txt" ]; then
-    echo "[ENTRYPOINT] Using verified cookies from /app/data/youtube_cookies.txt"
+    echo "[ENTRYPOINT] Detected YOUTUBE_COOKIES_BASE64 — validating UTF-8 Netscape cookie format..."
+    if python3 -c "import os, base64, re; raw = os.getenv('YOUTUBE_COOKIES_BASE64', ''); clean = re.sub(r'[^A-Za-z0-9+/=]', '', raw); data = base64.b64decode(clean) if clean else b''; data.decode('utf-8'); assert len(data) > 500; open('/tmp/youtube_cookies.txt', 'wb').write(data); open('/app/data/youtube_cookies.txt', 'wb').write(data)" 2>/dev/null; then
+        chmod 600 /app/data/youtube_cookies.txt /tmp/youtube_cookies.txt 2>/dev/null || true
+        COOKIE_SIZE=$(wc -c < /app/data/youtube_cookies.txt 2>/dev/null || echo 0)
+        echo "[ENTRYPOINT] Valid cookies decoded from env: ${COOKIE_SIZE} bytes"
+        VALID_COOKIES=1
+    else
+        echo "[ENTRYPOINT] WARNING: YOUTUBE_COOKIES_BASE64 is invalid or corrupted. Discarding env var and using repo file."
+    fi
+fi
+
+if [ "$VALID_COOKIES" = "0" ] && [ -f "/app/data/youtube_cookies.txt" ] && [ -s "/app/data/youtube_cookies.txt" ]; then
+    echo "[ENTRYPOINT] Using verified pristine cookies from repository /app/data/youtube_cookies.txt"
     cp /app/data/youtube_cookies.txt /tmp/youtube_cookies.txt
     chmod 600 /tmp/youtube_cookies.txt
     COOKIE_SIZE=$(wc -c < /tmp/youtube_cookies.txt 2>/dev/null || echo 0)
-    echo "[ENTRYPOINT] Cookies verified: ${COOKIE_SIZE} bytes"
+    echo "[ENTRYPOINT] Repository cookies verified: ${COOKIE_SIZE} bytes"
 fi
 
 # Ensure data directories exist
