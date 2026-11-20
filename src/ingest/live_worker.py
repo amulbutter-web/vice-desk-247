@@ -39,16 +39,16 @@ groq_pool = GroqPool()
 
 # Verified pool of Webshare residential proxies for automatic failover
 WEBSHARE_PROXIES = [
-    "http://msmaqhck:p6o0ndp2jz3v@84.247.60.125:6095",
-    "http://msmaqhck:p6o0ndp2jz3v@191.96.254.138:6185",
-    "http://msmaqhck:p6o0ndp2jz3v@198.46.161.42:5092",
-    "http://msmaqhck:p6o0ndp2jz3v@64.137.10.153:5803",
-    "http://msmaqhck:p6o0ndp2jz3v@104.164.49.38:7693",
-    "http://msmaqhck:p6o0ndp2jz3v@23.26.71.145:5628",
-    "http://msmaqhck:p6o0ndp2jz3v@45.38.107.97:6014",
-    "http://msmaqhck:p6o0ndp2jz3v@64.137.96.74:6641",
-    "http://msmaqhck:p6o0ndp2jz3v@198.23.243.226:6361",
-    "http://msmaqhck:p6o0ndp2jz3v@38.154.185.97:6370",
+    "http://vkfhjzqg:e95qnn2d11ml@45.38.107.97:6014",
+    "http://vkfhjzqg:e95qnn2d11ml@64.137.96.74:6641",
+    "http://vkfhjzqg:e95qnn2d11ml@198.23.243.226:6361",
+    "http://vkfhjzqg:e95qnn2d11ml@38.154.185.97:6370",
+    "http://vkfhjzqg:e95qnn2d11ml@84.247.60.125:6095",
+    "http://vkfhjzqg:e95qnn2d11ml@191.96.254.138:6185",
+    "http://vkfhjzqg:e95qnn2d11ml@198.46.161.42:5092",
+    "http://vkfhjzqg:e95qnn2d11ml@64.137.10.153:5803",
+    "http://vkfhjzqg:e95qnn2d11ml@104.164.49.38:7693",
+    "http://vkfhjzqg:e95qnn2d11ml@23.26.71.145:5628",
 ]
 
 def get_candidate_proxies() -> List[str]:
