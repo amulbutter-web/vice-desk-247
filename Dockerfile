@@ -43,7 +43,6 @@ RUN pip install --no-cache-dir \
     jsonschema>=4.20.0 \
     click>=8.0.0 \
     "yt-dlp[default]" \
-    yt-dlp-ejs>=0.8.0 \
     starlette==0.41.3 \
     pytest==8.4.2 \
     pytest-asyncio==0.26.0

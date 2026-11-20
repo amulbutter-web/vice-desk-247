@@ -140,15 +140,25 @@ class LiveIngestWorker:
 
         # Multi-proxy candidate pool with automatic failover
         candidate_proxies = get_candidate_proxies()
-        cookies_cand = Path("/tmp/youtube_cookies.txt")
-        b64_env = os.getenv("YOUTUBE_COOKIES_BASE64")
-        if b64_env:
-            try:
-                import base64
-                cookies_cand.write_bytes(base64.b64decode(b64_env))
-                cookies_cand.chmod(0o600)
-            except Exception as _ce:
-                logger.warning(f"Failed to decode YOUTUBE_COOKIES_BASE64: {_ce}")
+        # Locate valid cookies file (prioritize verified repo file, then /tmp)
+        cookies_cand = Path("/app/data/youtube_cookies.txt")
+        if not cookies_cand.exists() or cookies_cand.stat().st_size == 0:
+            cookies_cand = Path("data/youtube_cookies.txt")
+        if not cookies_cand.exists() or cookies_cand.stat().st_size == 0:
+            cookies_cand = Path("/tmp/youtube_cookies.txt")
+
+        # Fallback to env decoding only if file does not exist
+        if not cookies_cand.exists() or cookies_cand.stat().st_size == 0:
+            b64_env = os.getenv("YOUTUBE_COOKIES_BASE64")
+            if b64_env:
+                try:
+                    import base64, re
+                    clean = re.sub(r'[^A-Za-z0-9+/=]', '', b64_env)
+                    cookies_cand = Path("/tmp/youtube_cookies.txt")
+                    cookies_cand.write_bytes(base64.b64decode(clean))
+                    cookies_cand.chmod(0o600)
+                except Exception as _ce:
+                    logger.warning(f"Failed to decode YOUTUBE_COOKIES_BASE64: {_ce}")
 
         has_cookies = (cookies_cand.exists() and cookies_cand.stat().st_size > 0)
 

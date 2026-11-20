@@ -210,14 +210,21 @@ def diag_ytdlp(url: str = "https://www.youtube.com/watch?v=u1OGXGfOEI0"):
     import subprocess, shutil
     ytdlp = shutil.which("yt-dlp") or "yt-dlp"
     
-    # Ensure cookie file is written from env if present
-    cookie_path = Path("/tmp/youtube_cookies.txt")
+    # Ensure cookie file is found (check repo data first, then /tmp, then env decode)
+    cookie_path = Path("/app/data/youtube_cookies.txt")
+    if not cookie_path.exists() or cookie_path.stat().st_size == 0:
+        cookie_path = Path("data/youtube_cookies.txt")
+    if not cookie_path.exists() or cookie_path.stat().st_size == 0:
+        cookie_path = Path("/tmp/youtube_cookies.txt")
+    
     b64_env = os.getenv("YOUTUBE_COOKIES_BASE64")
     if b64_env and (not cookie_path.exists() or cookie_path.stat().st_size == 0):
         try:
-            cookie_path.write_bytes(base64.b64decode(b64_env))
+            import re
+            clean = re.sub(r'[^A-Za-z0-9+/=]', '', b64_env)
+            cookie_path.write_bytes(base64.b64decode(clean))
             cookie_path.chmod(0o600)
-        except Exception as e:
+        except Exception:
             pass
 
     cmd = [
