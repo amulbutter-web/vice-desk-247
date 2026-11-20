@@ -18,8 +18,8 @@ else
     echo "[ENTRYPOINT] WARNING: /usr/local/bin/bgutil-pot not found. Proceeding with standard yt-dlp extractor."
 fi
 
-# Start Cloudflare WARP userspace SOCKS5 & HTTP proxy via Wireproxy & Python automated setup (unlimited free bandwidth)
-if [ -x /usr/local/bin/wireproxy ]; then
+# Start Cloudflare WARP userspace proxy via Wireproxy ONLY if explicitly enabled (ENABLE_WARP=1)
+if [ -x /usr/local/bin/wireproxy ] && [ "${ENABLE_WARP:-0}" = "1" ]; then
     echo "[ENTRYPOINT] Initializing Cloudflare WARP userspace proxy via Python setup..."
     mkdir -p /app/data/warp
     python3 /app/scripts/setup_warp.py || python3 scripts/setup_warp.py || true

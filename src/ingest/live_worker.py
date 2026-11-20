@@ -59,20 +59,21 @@ def get_candidate_proxies() -> List[str]:
         return []
     
     pool = []
-    # Priority 1: Cloudflare WARP local bridge (port 8080 HTTP, port 1080 SOCKS5)
-    import socket
-    for p_addr, p_url in [
-        (("127.0.0.1", 8080), "http://127.0.0.1:8080"),
-        (("127.0.0.1", 1080), "socks5://127.0.0.1:1080"),
-    ]:
-        try:
-            s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-            s.settimeout(0.3)
-            if s.connect_ex(p_addr) == 0:
-                pool.append(p_url)
-            s.close()
-        except Exception:
-            pass
+    # Priority 1: Cloudflare WARP local bridge (only if explicitly enabled)
+    if os.getenv("ENABLE_WARP_PROXY", "").lower() in ("1", "true"):
+        import socket
+        for p_addr, p_url in [
+            (("127.0.0.1", 8080), "http://127.0.0.1:8080"),
+            (("127.0.0.1", 1080), "socks5://127.0.0.1:1080"),
+        ]:
+            try:
+                s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+                s.settimeout(0.3)
+                if s.connect_ex(p_addr) == 0:
+                    pool.append(p_url)
+                s.close()
+            except Exception:
+                pass
 
     if primary and primary not in pool:
         pool.insert(0, primary)
@@ -210,18 +211,17 @@ class LiveIngestWorker:
             warp_proxy = local_warp[0] if local_warp else None
 
             # Primary strategies ladder:
-            # 1. WARP proxy without cookies (Clean residential egress + bgutil-pot, immune to cookie expiration)
-            # 2. WARP proxy + cookies (if cookies available)
-            # 3. Direct connection without cookies (Railway direct + bgutil-pot)
-            # 4. Direct connection + cookies
+            # 1. Direct connection + verified cookies (Golden Path: 9-sec slice download with bgutil-pot on Railway)
+            # 2. Direct connection without cookies (with bgutil-pot PO Token minter)
+            # 3. WARP / external proxy fallbacks (if configured and active)
             primary_strategies = []
-            if warp_proxy:
-                primary_strategies.append(["--proxy", warp_proxy])
-                if has_cookies and temp_cookies:
-                    primary_strategies.append(["--proxy", warp_proxy, "--cookies", str(temp_cookies)])
-            primary_strategies.append([])
             if has_cookies and temp_cookies:
                 primary_strategies.append(["--cookies", str(temp_cookies)])
+            primary_strategies.append([])
+            if warp_proxy:
+                if has_cookies and temp_cookies:
+                    primary_strategies.append(["--proxy", warp_proxy, "--cookies", str(temp_cookies)])
+                primary_strategies.append(["--proxy", warp_proxy])
 
             for auth_args_primary in primary_strategies:
                 is_cookie = "--cookies" in auth_args_primary
