@@ -157,6 +157,7 @@ class LiveIngestWorker:
             logger.info(f"[INGEST] Downloading stream footage [{section_range}] via direct yt-dlp with authenticated cookies...")
             cmd_cookie_direct = [
                 self.ytdlp_bin,
+                "--no-plugin-dirs",
                 "-4",
                 "--extractor-args", "youtube:player_client=android,ios,web",
                 "--sleep-interval", "1",
@@ -177,7 +178,7 @@ class LiveIngestWorker:
                         wait = _YTDLP_MIN_INTERVAL_SEC - elapsed
                         time.sleep(wait)
                     _ytdlp_last_call_time = time.monotonic()
-                    res_cookie = subprocess.run(cmd_cookie_direct, capture_output=True, text=True, timeout=180)
+                    res_cookie = subprocess.run(cmd_cookie_direct, capture_output=True, text=True, errors="replace", timeout=180)
                 if res_cookie.returncode == 0 and target_file.exists() and target_file.stat().st_size > 500_000:
                     probe_check = self.probe.probe(str(target_file))
                     if probe_check.get("has_video") and probe_check.get("duration_ms", 0) > 10_000:

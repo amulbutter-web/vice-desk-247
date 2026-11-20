@@ -1,6 +1,10 @@
 #!/bin/sh
 set -e
 
+export PYTHONUTF8=1
+export LC_ALL=C.UTF-8
+export LANG=C.UTF-8
+
 echo "=== VICE DESK INTELLIGENCE 24/7 CLOUD SERVER STARTING ==="
 echo "Date: $(date -u)"
 
