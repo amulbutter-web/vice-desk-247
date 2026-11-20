@@ -177,6 +177,7 @@ class AutonomousPublisherDaemon:
     def _run_loop(self):
         logger.info("[DAEMON] Entering 24/7 continuous loop...")
         time.sleep(10)  # Allow server startup
+        youtube_rate_limited_until: float = 0.0  # Track when IP ban was detected
 
         while self.running:
             if settings.emergency_kill_switch:
@@ -283,6 +284,15 @@ class AutonomousPublisherDaemon:
                 video_path = res.get("output_path")
 
                 if not res.get("qc_passed") or not video_path or not Path(video_path).exists():
+                    fail_reason = res.get("reason", "")
+                    # Detect YouTube IP rate-limit — mark event FAILED and sleep until ban window clears
+                    if "rate-limited" in fail_reason.lower() or "genuine footage" in fail_reason.lower() or "Unable to download" in fail_reason.lower():
+                        youtube_rate_limited_until = time.time() + 3600  # Assume 1hr ban
+                        logger.warning("[DAEMON] YouTube IP rate-limited detected for %s — sleeping 10min. Instagram-only mode.", creator)
+                        if current_first_time_id:
+                            self.ledger.update_event_status(current_first_time_id, "FAILED", None)
+                        time.sleep(600)
+                        continue
                     logger.warning("[DAEMON] No rendered output for %s — skipping social publish", creator)
                     self.consecutive_errors += 1
                     if current_first_time_id:
@@ -405,10 +415,15 @@ class AutonomousPublisherDaemon:
         """
         Executes sequential rendering and publication of top scheduled breakthrough events
         directly to Instagram Reels (leveraging 100/day Meta quota).
+        YouTube-ban-aware: skips events that fail to download and moves to next one.
         """
         logger.info(f"[BATCH_BLAST] Starting autonomous blast of {target_count} Instagram Reels...")
         results = []
-        for i in range(target_count):
+        attempted = 0
+        max_attempts = target_count * 3  # Try up to 3x more events to find ones that render
+        events_tried = set()
+
+        while len(results) < target_count and attempted < max_attempts:
             if settings.emergency_kill_switch:
                 logger.warning("[BATCH_BLAST] Emergency kill switch active — aborting batch.")
                 break
@@ -418,15 +433,20 @@ class AutonomousPublisherDaemon:
                 logger.info("[BATCH_BLAST] No more SCHEDULED events in ledger.")
                 break
 
+            event_id = ev["id"]
+            if event_id in events_tried:
+                break
+            events_tried.add(event_id)
+            attempted += 1
+
             creator = ev["creator"]
             url = ev["stream_url"]
             section = ev["section_range"]
             hook = ev["viral_hook"]
             caption = ev.get("metadata", {}).get("caption", f"{ev['headline']} in GTA 6!")
-            event_id = ev["id"]
             lang = "hi" if creator in ("Mythpat", "CarryisLive", "Dattrax Plays", "RakaZone Gaming", "AS Gaming", "8bit Goldy") else "en"
 
-            logger.info(f"[BATCH_BLAST] [{i+1}/{target_count}] Processing {ev['headline']} ({creator})")
+            logger.info(f"[BATCH_BLAST] [{len(results)+1}/{target_count}] Processing {ev['headline']} ({creator})")
 
             try:
                 # 1. Render 1080p 60FPS Blur-Fill Ultra clip (30-45s)
@@ -440,7 +460,13 @@ class AutonomousPublisherDaemon:
                 )
                 video_path = res.get("output_path")
                 if not res.get("qc_passed") or not video_path or not Path(video_path).exists():
-                    logger.warning(f"[BATCH_BLAST] Render failed for {creator}")
+                    err_msg = res.get("reason", "")
+                    if "rate-limited" in err_msg.lower() or "genuine footage" in err_msg.lower() or "Unable to download" in err_msg.lower():
+                        logger.warning(f"[BATCH_BLAST] YouTube rate-limited for {creator} — marking FAILED and moving on")
+                        self.ledger.update_event_status(event_id, "FAILED", None)
+                    else:
+                        logger.warning(f"[BATCH_BLAST] Render failed for {creator}: {err_msg}")
+                    time.sleep(5)
                     continue
 
                 video_filename = Path(video_path).name
@@ -462,16 +488,20 @@ class AutonomousPublisherDaemon:
                     )
                     remote_id = ig_res.get("remote_id")
                     if self.ig_publisher.dry_run or not str(remote_id or "").isdigit():
+                        logger.warning(f"[BATCH_BLAST] Dry-run or invalid remote_id for {creator} — stopping blast")
                         break
                     self.ig_published_count += 1
                     self.ledger.update_event_status(event_id, "PUBLISHED", video_path)
-                    logger.info(f"[BATCH_BLAST] ✅ [{i+1}/{target_count}] Published {creator} to Instagram: {remote_id}")
+                    logger.info(f"[BATCH_BLAST] ✅ [{len(results)+1}/{target_count}] Published {creator} to Instagram: {remote_id}")
                     results.append({
                         "creator": creator,
                         "headline": ev["headline"],
                         "remote_media_id": remote_id,
                         "status": "PUBLISHED",
                     })
+                else:
+                    logger.warning(f"[BATCH_BLAST] Container status={status} for {creator} — skipping")
+                    self.ledger.update_event_status(event_id, "FAILED", None)
 
                 # Small cooldown between Instagram posts to protect rate limits
                 time.sleep(10)
@@ -480,7 +510,7 @@ class AutonomousPublisherDaemon:
                 logger.error(f"[BATCH_BLAST] Error publishing {creator}: {e}", exc_info=True)
                 time.sleep(4)
 
-        logger.info(f"[BATCH_BLAST] Finished batch blast. Total published: {len(results)}")
+        logger.info(f"[BATCH_BLAST] Finished batch blast. Total published: {len(results)} / attempted: {attempted}")
         return results
 
 
