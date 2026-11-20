@@ -163,11 +163,10 @@ class LiveIngestWorker:
                         cmd_native = [
                             self.ytdlp_bin,
                             "-4",
-                            "--extractor-args", "youtubepot-bgutilhttp:base_url=http://127.0.0.1:4416",
-                            "--extractor-args", "youtube:player_client=mweb,android,web",
+                            "--extractor-args", "youtube:player_client=android,ios,web",
                             "--sleep-interval", "3",
                             "--max-sleep-interval", "7",
-                            "-f", "best[height<=1080]/bestvideo[height<=1080]+bestaudio/best",
+                            "-f", "bestvideo[height<=1080]+bestaudio/best[height<=1080]/best",
                             "--download-sections", section_range,
                             "--force-overwrites",
                             "--no-playlist",
@@ -200,7 +199,7 @@ class LiveIngestWorker:
                         else:
                             stderr_out = res_nat.stderr if res_nat.stderr else ""
                             # Self-healing: if cookies were rejected or bot verification hit, drop cookies immediately
-                            if "--cookies" in auth_args and any(sig in stderr_out for sig in ["cookies are no longer valid", "confirm you're not a bot", "confirm you’re not a bot"]):
+                            if "--cookies" in auth_args and any(sig in stderr_out for sig in ["cookies are no longer valid", "confirm you're not a bot", "confirm you’re not a bot", "Use --cookies", "from-browser"]):
                                 logger.warning(f"[INGEST] YouTube rejected cookies on proxy {current_proxy.split('@')[-1]}. Auto-dropping cookies and retrying clean proxy...")
                                 has_cookies = False  # Don't try cookies again
                                 continue
@@ -224,10 +223,10 @@ class LiveIngestWorker:
                         cmd_direct = [
                             self.ytdlp_bin,
                             "-4",
-                            "--extractor-args", "youtube:player_client=mweb,android,web",
+                            "--extractor-args", "youtube:player_client=android,ios,web",
                             "--sleep-interval", "3",
                             "--max-sleep-interval", "7",
-                            "-f", "best[height<=1080]/bestvideo[height<=1080]+bestaudio/best",
+                            "-f", "bestvideo[height<=1080]+bestaudio/best[height<=1080]/best",
                             "--download-sections", section_range,
                             "--force-overwrites",
                             "--no-playlist",
@@ -247,7 +246,7 @@ class LiveIngestWorker:
                                 return target_file
                         else:
                             stderr_direct = res_direct.stderr or ""
-                            if "--cookies" in auth_args_direct and any(sig in stderr_direct for sig in ["cookies are no longer valid", "confirm you're not a bot"]):
+                            if "--cookies" in auth_args_direct and any(sig in stderr_direct for sig in ["cookies are no longer valid", "confirm you're not a bot", "Use --cookies", "from-browser"]):
                                 has_cookies = False
                                 continue
                             logger.warning(f"[INGEST][DIRECT] Direct download also failed: {stderr_direct[-200:]}")
@@ -263,13 +262,12 @@ class LiveIngestWorker:
                     cmd_g = [
                         self.ytdlp_bin,
                         "-4",
-                        "--extractor-args", "youtubepot-bgutilhttp:base_url=http://127.0.0.1:4416",
-                        "--extractor-args", "youtube:player_client=mweb,android,web",
+                        "--extractor-args", "youtube:player_client=android,ios,web",
                         "--proxy", current_proxy,
                         "--sleep-interval", "3",
                         "--max-sleep-interval", "7",
                         "-g",
-                        "-f", "best[height<=1080]/bestvideo[height<=1080]+bestaudio/best",
+                        "-f", "bestvideo[height<=1080]+bestaudio/best[height<=1080]/best",
                         "--no-warnings",
                         url,
                     ]
