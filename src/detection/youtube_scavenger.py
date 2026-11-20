@@ -60,7 +60,7 @@ class YouTubeScavenger:
         cmd = [
             self.ytdlp_bin,
             f"ytsearch{limit}:{query}",
-            "--extractor-args", "youtubepot-bgutilhttp:base_url=http://127.0.0.1:4416",
+            "--no-plugin-dirs",
             "--extractor-args", "youtube:player_client=android,web",
             "--dump-json",
             "--flat-playlist",
@@ -68,7 +68,7 @@ class YouTubeScavenger:
         ] + auth_args
         results = []
         try:
-            res = subprocess.run(cmd, capture_output=True, text=True, timeout=30)
+            res = subprocess.run(cmd, capture_output=True, text=True, errors="replace", timeout=30)
             if res.returncode == 0 and res.stdout.strip():
                 for line in res.stdout.strip().splitlines():
                     if not line.strip():

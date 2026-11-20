@@ -206,6 +206,7 @@ class LiveIngestWorker:
                         logger.info(f"[INGEST] Downloading stream footage [{section_range}] via yt-dlp (proxy #{p_idx+1}: {current_proxy.split('@')[-1]}, cookies={'yes' if '--cookies' in auth_args else 'no'})...")
                         cmd_native = [
                             self.ytdlp_bin,
+                            "--no-plugin-dirs",
                             "-4",
                             "--extractor-args", "youtube:player_client=android,ios,web",
                             "--sleep-interval", "3",
@@ -225,7 +226,7 @@ class LiveIngestWorker:
                                 logger.info(f"[RateGuard] Throttling yt-dlp — waiting {wait:.1f}s before next call")
                                 time.sleep(wait)
                             _ytdlp_last_call_time = time.monotonic()
-                            res_nat = subprocess.run(cmd_native, capture_output=True, text=True, timeout=180)
+                            res_nat = subprocess.run(cmd_native, capture_output=True, text=True, errors="replace", timeout=180)
 
                         if res_nat.returncode == 0 and target_file.exists() and target_file.stat().st_size > 500_000:
                             try:
@@ -265,6 +266,7 @@ class LiveIngestWorker:
                     try:
                         cmd_direct = [
                             self.ytdlp_bin,
+                            "--no-plugin-dirs",
                             "-4",
                             "--extractor-args", "youtube:player_client=android,ios,web",
                             "--sleep-interval", "3",
@@ -281,7 +283,7 @@ class LiveIngestWorker:
                             if elapsed < _YTDLP_MIN_INTERVAL_SEC:
                                 time.sleep(_YTDLP_MIN_INTERVAL_SEC - elapsed)
                             _ytdlp_last_call_time = time.monotonic()
-                            res_direct = subprocess.run(cmd_direct, capture_output=True, text=True, timeout=180)
+                            res_direct = subprocess.run(cmd_direct, capture_output=True, text=True, errors="replace", timeout=180)
                         if res_direct.returncode == 0 and target_file.exists() and target_file.stat().st_size > 500_000:
                             probe_check = self.probe.probe(str(target_file))
                             if probe_check.get("has_video") and probe_check.get("duration_ms", 0) > 10_000:
@@ -304,6 +306,7 @@ class LiveIngestWorker:
                     logger.info(f"Fallback: Extracting live stream URLs for {url} [{start_str} +{duration_sec}s] via proxy {current_proxy.split('@')[-1]}...")
                     cmd_g = [
                         self.ytdlp_bin,
+                        "--no-plugin-dirs",
                         "-4",
                         "--extractor-args", "youtube:player_client=android,ios,web",
                         "--proxy", current_proxy,
@@ -319,7 +322,7 @@ class LiveIngestWorker:
                         if elapsed < _YTDLP_MIN_INTERVAL_SEC:
                             time.sleep(_YTDLP_MIN_INTERVAL_SEC - elapsed)
                         _ytdlp_last_call_time = time.monotonic()
-                        res_g = subprocess.run(cmd_g, capture_output=True, text=True, timeout=30)
+                        res_g = subprocess.run(cmd_g, capture_output=True, text=True, errors="replace", timeout=30)
 
                     if res_g.returncode == 0 and res_g.stdout.strip():
                         stream_urls = res_g.stdout.strip().splitlines()

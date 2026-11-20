@@ -223,7 +223,7 @@ def diag_ytdlp(url: str = "https://www.youtube.com/watch?v=u1OGXGfOEI0"):
     cmd = [
         ytdlp,
         "-v",
-        "--extractor-args", "youtubepot-bgutilhttp:base_url=http://127.0.0.1:4416",
+        "--no-plugin-dirs",
         "--extractor-args", "youtube:player_client=android,web",
         "--skip-download",
     ]
@@ -231,7 +231,7 @@ def diag_ytdlp(url: str = "https://www.youtube.com/watch?v=u1OGXGfOEI0"):
         cmd.extend(["--cookies", str(cookie_path)])
 
     cmd.append(url)
-    res = subprocess.run(cmd, capture_output=True, text=True, timeout=25)
+    res = subprocess.run(cmd, capture_output=True, text=True, errors="replace", timeout=25)
     return {
         "returncode": res.returncode,
         "cookie_file_exists": cookie_path.exists(),

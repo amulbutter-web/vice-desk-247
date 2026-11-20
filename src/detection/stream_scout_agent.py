@@ -312,8 +312,15 @@ class StreamScoutAgent:
         """Quick inspection of YouTube stream using yt-dlp metadata."""
         import subprocess
         try:
-            cmd = ["yt-dlp", "--extractor-args", "youtubepot-bgutilhttp:base_url=http://127.0.0.1:4416", "--extractor-args", "youtube:player_client=android,web", "--dump-json", "--skip-download", "--no-warnings", url]
-            res = subprocess.run(cmd, capture_output=True, text=True, timeout=12)
+            auth_args = []
+            cookies_cand = Path("/tmp/youtube_cookies.txt")
+            if not cookies_cand.exists() and Path("data/youtube_cookies.txt").exists():
+                cookies_cand = Path("data/youtube_cookies.txt")
+            if cookies_cand.exists() and cookies_cand.stat().st_size > 0:
+                auth_args.extend(["--cookies", str(cookies_cand)])
+
+            cmd = ["yt-dlp", "--no-plugin-dirs", "--extractor-args", "youtube:player_client=android,web", "--dump-json", "--skip-download", "--no-warnings"] + auth_args + [url]
+            res = subprocess.run(cmd, capture_output=True, text=True, errors="replace", timeout=15)
             if res.returncode == 0:
                 data = json.loads(res.stdout)
                 return {
