@@ -154,6 +154,19 @@ class LiveIngestWorker:
             "(KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
         )
 
+        def _find_actual_output(desired_path: Path, min_bytes: int = 500_000) -> Optional[Path]:
+            if desired_path.exists() and desired_path.stat().st_size > min_bytes:
+                return desired_path
+            parent_dir = desired_path.parent
+            base_stem = desired_path.stem
+            candidates = [
+                p for p in parent_dir.glob(f"{base_stem}*")
+                if not p.name.endswith(".part") and not p.name.endswith(".ytdl") and p.stat().st_size > min_bytes
+            ]
+            if candidates:
+                return max(candidates, key=lambda c: c.stat().st_size)
+            return None
+
         # Multi-proxy candidate pool with automatic failover
         candidate_proxies = get_candidate_proxies()
         # Locate valid cookies file (prioritize verified repo file, then /tmp)
@@ -212,6 +225,7 @@ class LiveIngestWorker:
                     "--sleep-interval", "1",
                     "--max-sleep-interval", "3",
                     "-f", "bestvideo[height<=1080]+bestaudio/best[height<=1080]/best",
+                    "--merge-output-format", "mp4",
                     "--download-sections", section_range,
                     "--force-overwrites",
                     "--no-playlist",
@@ -228,11 +242,16 @@ class LiveIngestWorker:
                             time.sleep(wait)
                         _ytdlp_last_call_time = time.monotonic()
                         res_cookie = subprocess.run(cmd_cookie_direct, capture_output=True, text=True, errors="replace", timeout=120)
-                    if res_cookie.returncode == 0 and target_file.exists() and target_file.stat().st_size > 500_000:
-                        probe_check = self.probe.probe(str(target_file))
+
+                    actual_file = _find_actual_output(target_file)
+                    if res_cookie.returncode == 0 and actual_file:
+                        probe_check = self.probe.probe(str(actual_file))
                         if probe_check.get("has_video") and probe_check.get("duration_ms", 0) > 10_000:
-                            logger.info(f"[INGEST] Direct capture SUCCESS ({proxy_str}, cookies={'yes' if is_cookie else 'no'}): {target_file} ({target_file.stat().st_size / (1024*1024):.2f} MB)")
-                            return target_file
+                            logger.info(f"[INGEST] Direct capture SUCCESS ({proxy_str}, cookies={'yes' if is_cookie else 'no'}): {actual_file} ({actual_file.stat().st_size / (1024*1024):.2f} MB)")
+                            return actual_file
+                        else:
+                            logger.warning(f"[INGEST] Direct capture file invalid/too short ({probe_check.get('duration_ms', 0)}ms)")
+                            actual_file.unlink(missing_ok=True)
                     else:
                         err_snip = (res_cookie.stderr or '')[-250:]
                         logger.warning(f"[INGEST] Direct slice ({proxy_str}, cookies={'yes' if is_cookie else 'no'}) returned code {res_cookie.returncode}: {err_snip}")
@@ -259,11 +278,11 @@ class LiveIngestWorker:
                         logger.info(f"[INGEST] Downloading stream footage [{section_range}] via yt-dlp (proxy #{p_idx+1}: {current_proxy.split('@')[-1]}, cookies={'yes' if '--cookies' in auth_args else 'no'})...")
                         cmd_native = [
                             self.ytdlp_bin,
-                            "--no-plugin-dirs",
                             "-4",
                             "--sleep-interval", "3",
                             "--max-sleep-interval", "7",
                             "-f", "bestvideo[height<=1080]+bestaudio/best[height<=1080]/best",
+                            "--merge-output-format", "mp4",
                             "--download-sections", section_range,
                             "--force-overwrites",
                             "--no-playlist",
@@ -280,18 +299,19 @@ class LiveIngestWorker:
                             _ytdlp_last_call_time = time.monotonic()
                             res_nat = subprocess.run(cmd_native, capture_output=True, text=True, errors="replace", timeout=180)
 
-                        if res_nat.returncode == 0 and target_file.exists() and target_file.stat().st_size > 500_000:
+                        actual_file = _find_actual_output(target_file)
+                        if res_nat.returncode == 0 and actual_file:
                             try:
-                                probe_check = self.probe.probe(str(target_file))
+                                probe_check = self.probe.probe(str(actual_file))
                                 if probe_check.get("has_video") and probe_check.get("duration_ms", 0) > 10_000:
-                                    logger.info(f"Native yt-dlp captured verified footage: {target_file} ({target_file.stat().st_size / (1024*1024):.2f} MB)")
-                                    return target_file
+                                    logger.info(f"Native yt-dlp captured verified footage: {actual_file} ({actual_file.stat().st_size / (1024*1024):.2f} MB)")
+                                    return actual_file
                                 else:
                                     logger.warning(f"Native yt-dlp file invalid/too short ({probe_check.get('duration_ms', 0)}ms) — trying next")
-                                    target_file.unlink(missing_ok=True)
+                                    actual_file.unlink(missing_ok=True)
                             except Exception as p_err:
                                 logger.warning(f"Native yt-dlp probe error: {p_err}")
-                                target_file.unlink(missing_ok=True)
+                                actual_file.unlink(missing_ok=True)
                         else:
                             stderr_out = res_nat.stderr if res_nat.stderr else ""
                             # Self-healing: if cookies were rejected or bot verification hit, drop cookies immediately
@@ -324,6 +344,7 @@ class LiveIngestWorker:
                             "--sleep-interval", "3",
                             "--max-sleep-interval", "7",
                             "-f", "bestvideo[height<=1080]+bestaudio/best[height<=1080]/best",
+                            "--merge-output-format", "mp4",
                             "--download-sections", section_range,
                             "--force-overwrites",
                             "--no-playlist",
@@ -336,11 +357,12 @@ class LiveIngestWorker:
                                 time.sleep(_YTDLP_MIN_INTERVAL_SEC - elapsed)
                             _ytdlp_last_call_time = time.monotonic()
                             res_direct = subprocess.run(cmd_direct, capture_output=True, text=True, errors="replace", timeout=180)
-                        if res_direct.returncode == 0 and target_file.exists() and target_file.stat().st_size > 500_000:
-                            probe_check = self.probe.probe(str(target_file))
+                        actual_file = _find_actual_output(target_file)
+                        if res_direct.returncode == 0 and actual_file:
+                            probe_check = self.probe.probe(str(actual_file))
                             if probe_check.get("has_video") and probe_check.get("duration_ms", 0) > 10_000:
-                                logger.info(f"[INGEST][DIRECT] yt-dlp direct download succeeded: {target_file} ({target_file.stat().st_size / (1024*1024):.2f} MB)")
-                                return target_file
+                                logger.info(f"[INGEST][DIRECT] yt-dlp direct download succeeded: {actual_file} ({actual_file.stat().st_size / (1024*1024):.2f} MB)")
+                                return actual_file
                         else:
                             stderr_direct = res_direct.stderr or ""
                             if "--cookies" in auth_args_direct and any(sig in stderr_direct for sig in ["cookies are no longer valid", "confirm you're not a bot", "confirm you’re not a bot", "Use --cookies", "from-browser", "LOGIN_REQUIRED"]):
@@ -421,17 +443,18 @@ class LiveIngestWorker:
                             ]
 
                         res_ff = subprocess.run(cmd_ff, capture_output=True, text=True, timeout=120)
-                        if res_ff.returncode == 0 and target_file.exists() and target_file.stat().st_size > 500_000:
+                        actual_file = _find_actual_output(target_file)
+                        if res_ff.returncode == 0 and actual_file:
                             try:
-                                probe_check = self.probe.probe(str(target_file))
+                                probe_check = self.probe.probe(str(actual_file))
                                 if probe_check.get("has_video") and probe_check.get("duration_ms", 0) > 10_000:
-                                    logger.info(f"Fallback stream footage verified: {target_file} ({target_file.stat().st_size / (1024*1024):.2f} MB)")
-                                    return target_file
+                                    logger.info(f"Fallback stream footage verified: {actual_file} ({actual_file.stat().st_size / (1024*1024):.2f} MB)")
+                                    return actual_file
                                 else:
-                                    target_file.unlink(missing_ok=True)
+                                    actual_file.unlink(missing_ok=True)
                             except Exception as p_err:
                                 logger.warning(f"Fallback probe error: {p_err}")
-                                target_file.unlink(missing_ok=True)
+                                actual_file.unlink(missing_ok=True)
                         else:
                             logger.warning(f"Fallback FFmpeg direct slice failed (code {res_ff.returncode}) on proxy {current_proxy.split('@')[-1]}")
                 except Exception as eg:
