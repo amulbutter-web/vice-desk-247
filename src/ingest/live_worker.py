@@ -76,9 +76,11 @@ def get_candidate_proxies() -> List[str]:
 
     if primary and primary not in pool:
         pool.insert(0, primary)
-    for wp in WEBSHARE_PROXIES:
-        if wp not in pool:
-            pool.append(wp)
+    # Only append Webshare proxies if explicitly enabled via environment variable
+    if os.getenv("ENABLE_WEBSHARE_FALLBACK", "").lower() in ("1", "true"):
+        for wp in WEBSHARE_PROXIES:
+            if wp not in pool:
+                pool.append(wp)
     return pool
 
 def _proxy_is_dead(stderr: str) -> bool:
@@ -169,7 +171,7 @@ class LiveIngestWorker:
 
         # Multi-proxy candidate pool with automatic failover
         candidate_proxies = get_candidate_proxies()
-        # Locate valid cookies file (prioritize verified repo file, then /tmp)
+        # Locate valid pristine cookies file (prioritize verified repo file, then /tmp)
         cookies_cand = Path("/app/data/youtube_cookies.txt")
         if not cookies_cand.exists() or cookies_cand.stat().st_size == 0:
             cookies_cand = Path("data/youtube_cookies.txt")
@@ -190,6 +192,17 @@ class LiveIngestWorker:
                     logger.warning(f"Failed to decode YOUTUBE_COOKIES_BASE64: {_ce}")
 
         has_cookies = (cookies_cand.exists() and cookies_cand.stat().st_size > 0)
+        # Create an isolated temporary copy of cookies so yt-dlp never poisons or mutates the pristine file
+        temp_cookies: Optional[Path] = None
+        if has_cookies:
+            try:
+                temp_dir = Path("/app/data/temp") if Path("/app/data/temp").exists() else Path("data/temp")
+                temp_dir.mkdir(parents=True, exist_ok=True)
+                temp_cookies = temp_dir / f"cookies_{uuid.uuid4().hex[:8]}.txt"
+                shutil.copy2(cookies_cand, temp_cookies)
+            except Exception as _tce:
+                logger.warning(f"Failed to copy cookies to temp file: {_tce}")
+                temp_cookies = cookies_cand
 
         # 3. Primary Method: Direct yt-dlp slice with visionos,ios,web and bgutil-pot (via Cloudflare WARP if active)
         if os.path.exists(self.ytdlp_bin) and (url.startswith("http://") or url.startswith("https://")):
@@ -197,18 +210,18 @@ class LiveIngestWorker:
             warp_proxy = local_warp[0] if local_warp else None
 
             # Primary strategies ladder:
-            # 1. Direct connection + cookies (proven fastest & most reliable on Railway with bgutil-pot + visionos,ios,web)
-            # 2. Direct connection without cookies
-            # 3. WARP proxy + cookies (if WARP active)
-            # 4. WARP proxy without cookies
+            # 1. WARP proxy without cookies (Clean residential egress + bgutil-pot, immune to cookie expiration)
+            # 2. WARP proxy + cookies (if cookies available)
+            # 3. Direct connection without cookies (Railway direct + bgutil-pot)
+            # 4. Direct connection + cookies
             primary_strategies = []
-            if has_cookies:
-                primary_strategies.append(["--cookies", str(cookies_cand)])
-            primary_strategies.append([])
-            if warp_proxy and has_cookies:
-                primary_strategies.append(["--proxy", warp_proxy, "--cookies", str(cookies_cand)])
             if warp_proxy:
                 primary_strategies.append(["--proxy", warp_proxy])
+                if has_cookies and temp_cookies:
+                    primary_strategies.append(["--proxy", warp_proxy, "--cookies", str(temp_cookies)])
+            primary_strategies.append([])
+            if has_cookies and temp_cookies:
+                primary_strategies.append(["--cookies", str(temp_cookies)])
 
             for auth_args_primary in primary_strategies:
                 is_cookie = "--cookies" in auth_args_primary
@@ -221,7 +234,7 @@ class LiveIngestWorker:
                     "-4",
                     "--extractor-args", "youtubepot-bgutilhttp:base_url=http://127.0.0.1:4416",
                     "--extractor-args", "youtube:player_client=visionos,ios,web",
-                    "--socket-timeout", "15",
+                    "--socket-timeout", "20",
                     "--sleep-interval", "1",
                     "--max-sleep-interval", "3",
                     "-f", "bestvideo[height<=1080]+bestaudio/best[height<=1080]/best",
@@ -248,14 +261,28 @@ class LiveIngestWorker:
                         probe_check = self.probe.probe(str(actual_file))
                         if probe_check.get("has_video") and probe_check.get("duration_ms", 0) > 10_000:
                             logger.info(f"[INGEST] Direct capture SUCCESS ({proxy_str}, cookies={'yes' if is_cookie else 'no'}): {actual_file} ({actual_file.stat().st_size / (1024*1024):.2f} MB)")
+                            if temp_cookies and temp_cookies.exists() and temp_cookies != cookies_cand:
+                                temp_cookies.unlink(missing_ok=True)
                             return actual_file
                         else:
                             logger.warning(f"[INGEST] Direct capture file invalid/too short ({probe_check.get('duration_ms', 0)}ms)")
                             actual_file.unlink(missing_ok=True)
                     else:
-                        err_snip = (res_cookie.stderr or '')[-250:]
+                        err_full = res_cookie.stderr or ""
+                        err_snip = err_full[-250:]
                         logger.warning(f"[INGEST] Direct slice ({proxy_str}, cookies={'yes' if is_cookie else 'no'}) returned code {res_cookie.returncode}: {err_snip}")
-                        if is_cookie and any(sig in err_snip for sig in ["cookies are no longer valid", "confirm you're not a bot", "confirm you’re not a bot", "LOGIN_REQUIRED"]):
+                        auth_sigs = [
+                            "cookies are no longer valid",
+                            "confirm you're not a bot",
+                            "confirm you’re not a bot",
+                            "login_required",
+                            "how-do-i-pass-cookies",
+                            "exporting-youtube-cookies",
+                            "sign in to confirm",
+                            "use --cookies",
+                        ]
+                        if is_cookie and any(sig in err_full.lower() for sig in auth_sigs):
+                            logger.warning(f"[INGEST] YouTube challenged or invalidated cookies. Dropping cookies for subsequent attempts.")
                             has_cookies = False
                             continue
                 except Exception as ce:
@@ -380,7 +407,6 @@ class LiveIngestWorker:
                     logger.info(f"Fallback: Extracting live stream URLs for {url} [{start_str} +{duration_sec}s] via proxy {current_proxy.split('@')[-1]}...")
                     cmd_g = [
                         self.ytdlp_bin,
-                        "--no-plugin-dirs",
                         "-4",
                         "--proxy", current_proxy,
                         "--sleep-interval", "3",

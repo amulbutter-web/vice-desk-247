@@ -33,23 +33,33 @@ if [ -x /usr/local/bin/wgcf ] && [ -x /usr/local/bin/wireproxy ]; then
     fi
     if [ -f "wgcf-profile.conf" ]; then
         # Optimize for container networking:
-        # Strip IPv6 address and routes to prevent blackholing in IPv4-only cloud networks
+        # 1. Strip IPv6 address and routes to prevent blackholing in IPv4-only cloud networks
         sed -i 's/, [0-9a-fA-F:]*\/128//g' wgcf-profile.conf || true
         sed -i 's/, ::\/0//g' wgcf-profile.conf || true
-        # Use direct Cloudflare IPv4 endpoint (bypasses UDP DNS lookup for peer)
+        # 2. Force IPv4-only DNS to avoid wireproxy netstack IPv6 timeout
+        sed -i 's/^DNS = .*/DNS = 1.1.1.1, 8.8.8.8/g' wgcf-profile.conf || true
+        # 3. Ensure safe MTU for cloud networks
+        sed -i 's/^MTU = .*/MTU = 1280/g' wgcf-profile.conf || true
+        # 4. Use direct Cloudflare IPv4 endpoint (bypasses UDP DNS lookup for peer)
         sed -i 's/engage.cloudflareclient.com:2408/162.159.192.1:2408/g' wgcf-profile.conf || true
+        # 5. Add PersistentKeepalive if missing
+        if ! grep -q "PersistentKeepalive" wgcf-profile.conf; then
+            sed -i '/Endpoint = /a PersistentKeepalive = 25' wgcf-profile.conf || true
+        fi
 
-        # Append Socks5 and HTTP proxy sections directly to Wireproxy config if missing
-        if ! grep -q "\[Socks5\]" wgcf-profile.conf; then
-            cat <<EOF >> wgcf-profile.conf
+        # 6. Clear any previously appended sections and append clean Socks5 & http sections (wireproxy expects lowercase [http])
+        sed -i '/^\[Socks5\]/,$d' wgcf-profile.conf 2>/dev/null || true
+        sed -i '/^\[http\]/,$d' wgcf-profile.conf 2>/dev/null || true
+        sed -i '/^\[HTTP\]/,$d' wgcf-profile.conf 2>/dev/null || true
+
+        cat <<EOF >> wgcf-profile.conf
 
 [Socks5]
 BindAddress = 127.0.0.1:1080
 
-[HTTP]
+[http]
 BindAddress = 127.0.0.1:8080
 EOF
-        fi
 
         echo "[ENTRYPOINT] Starting wireproxy (SOCKS5 :1080, HTTP :8080)..."
         /usr/local/bin/wireproxy -c /app/data/warp/wgcf-profile.conf &

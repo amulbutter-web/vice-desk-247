@@ -257,6 +257,11 @@ def diag_ytdlp(
         if section:
             cmd.extend(["--download-sections", section])
 
+    if proxy == "warp":
+        proxy = "http://127.0.0.1:8080"
+    elif proxy == "warp-socks":
+        proxy = "socks5h://127.0.0.1:1080"
+
     if proxy:
         cmd.extend(["--proxy", proxy])
     if use_cookies and cookie_path.exists() and cookie_path.stat().st_size > 0:
@@ -268,9 +273,17 @@ def diag_ytdlp(
     download_info = {}
     if download:
         test_f = Path("/app/data/temp/diag_test.mp4")
+        found = None
+        if test_f.exists() and test_f.stat().st_size > 500_000:
+            found = test_f
+        else:
+            candidates = list(test_f.parent.glob("diag_test*"))
+            if candidates:
+                found = max(candidates, key=lambda c: c.stat().st_size)
         download_info = {
-            "downloaded": test_f.exists(),
-            "size_bytes": test_f.stat().st_size if test_f.exists() else 0,
+            "downloaded": bool(found),
+            "path": str(found) if found else None,
+            "size_bytes": found.stat().st_size if found else 0,
         }
 
     return {
@@ -326,8 +339,8 @@ def diag_warp():
     # Direct trace (baseline)
     try:
         res_dir = subprocess.run(
-            ["curl", "-s", "--max-time", "4", "https://www.cloudflare.com/cdn-cgi/trace"],
-            capture_output=True, text=True, timeout=5
+            ["curl", "-s", "--max-time", "6", "https://www.cloudflare.com/cdn-cgi/trace"],
+            capture_output=True, text=True, timeout=8
         )
         output["direct_trace"] = res_dir.stdout
     except Exception as de:
@@ -336,13 +349,13 @@ def diag_warp():
     # Test HTTP proxy (:8080)
     try:
         res_http = subprocess.run(
-            ["curl", "-s", "--max-time", "5", "--proxy", "http://127.0.0.1:8080", "https://www.cloudflare.com/cdn-cgi/trace"],
-            capture_output=True, text=True, timeout=6
+            ["curl", "-s", "--max-time", "10", "--proxy", "http://127.0.0.1:8080", "https://api.ipify.org?format=json"],
+            capture_output=True, text=True, timeout=12
         )
         output["http_proxy_8080"] = {
             "status": "ok" if res_http.returncode == 0 else "failed",
             "returncode": res_http.returncode,
-            "trace": res_http.stdout,
+            "ip": res_http.stdout.strip(),
             "error": res_http.stderr,
         }
     except Exception as e:
@@ -351,13 +364,13 @@ def diag_warp():
     # Test SOCKS5 proxy (:1080)
     try:
         res_socks = subprocess.run(
-            ["curl", "-s", "--max-time", "5", "--proxy", "socks5://127.0.0.1:1080", "https://www.cloudflare.com/cdn-cgi/trace"],
-            capture_output=True, text=True, timeout=6
+            ["curl", "-s", "--max-time", "10", "--proxy", "socks5h://127.0.0.1:1080", "https://api.ipify.org?format=json"],
+            capture_output=True, text=True, timeout=12
         )
         output["socks5_proxy_1080"] = {
             "status": "ok" if res_socks.returncode == 0 else "failed",
             "returncode": res_socks.returncode,
-            "trace": res_socks.stdout,
+            "ip": res_socks.stdout.strip(),
             "error": res_socks.stderr,
         }
     except Exception as e:
