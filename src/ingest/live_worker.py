@@ -162,42 +162,49 @@ class LiveIngestWorker:
 
         has_cookies = (cookies_cand.exists() and cookies_cand.stat().st_size > 0)
 
-        # 3. Primary Method: Direct yt-dlp slice with authenticated session cookies (Permanent, ultra-fast, zero proxy needed)
-        if os.path.exists(self.ytdlp_bin) and (url.startswith("http://") or url.startswith("https://")) and has_cookies:
-            logger.info(f"[INGEST] Downloading stream footage [{section_range}] via direct yt-dlp with authenticated cookies...")
-            cmd_cookie_direct = [
-                self.ytdlp_bin,
-                "-4",
-                "--extractor-args", "youtubepot-bgutilhttp:base_url=http://127.0.0.1:4416",
-                "--extractor-args", "youtube:player_client=visionos,ios,web",
-                "--sleep-interval", "1",
-                "--max-sleep-interval", "3",
-                "-f", "bestvideo[height<=1080]+bestaudio/best[height<=1080]/best",
-                "--download-sections", section_range,
-                "--force-overwrites",
-                "--no-playlist",
-                "--no-warnings",
-                "--cookies", str(cookies_cand),
-                "-o", str(target_file),
-                url,
-            ]
-            try:
-                with _ytdlp_global_lock:
-                    elapsed = time.monotonic() - _ytdlp_last_call_time
-                    if elapsed < _YTDLP_MIN_INTERVAL_SEC:
-                        wait = _YTDLP_MIN_INTERVAL_SEC - elapsed
-                        time.sleep(wait)
-                    _ytdlp_last_call_time = time.monotonic()
-                    res_cookie = subprocess.run(cmd_cookie_direct, capture_output=True, text=True, errors="replace", timeout=180)
-                if res_cookie.returncode == 0 and target_file.exists() and target_file.stat().st_size > 500_000:
-                    probe_check = self.probe.probe(str(target_file))
-                    if probe_check.get("has_video") and probe_check.get("duration_ms", 0) > 10_000:
-                        logger.info(f"[INGEST] Direct authenticated cookie capture SUCCESS: {target_file} ({target_file.stat().st_size / (1024*1024):.2f} MB)")
-                        return target_file
-                else:
-                    logger.warning(f"[INGEST] Direct cookie slice returned code {res_cookie.returncode}: {(res_cookie.stderr or '')[-250:]}")
-            except Exception as ce:
-                logger.warning(f"[INGEST] Direct cookie slice exception: {ce}")
+        # 3. Primary Method: Direct yt-dlp slice with visionos,ios,web and bgutil-pot
+        if os.path.exists(self.ytdlp_bin) and (url.startswith("http://") or url.startswith("https://")):
+            primary_strategies = ([["--cookies", str(cookies_cand)]] if has_cookies else []) + [[]]
+            for auth_args_primary in primary_strategies:
+                is_cookie = "--cookies" in auth_args_primary
+                logger.info(f"[INGEST] Downloading stream footage [{section_range}] via direct yt-dlp (cookies={'yes' if is_cookie else 'no'})...")
+                cmd_cookie_direct = [
+                    self.ytdlp_bin,
+                    "-4",
+                    "--extractor-args", "youtubepot-bgutilhttp:base_url=http://127.0.0.1:4416",
+                    "--extractor-args", "youtube:player_client=visionos,ios,web",
+                    "--sleep-interval", "1",
+                    "--max-sleep-interval", "3",
+                    "-f", "bestvideo[height<=1080]+bestaudio/best[height<=1080]/best",
+                    "--download-sections", section_range,
+                    "--force-overwrites",
+                    "--no-playlist",
+                    "--no-warnings",
+                ] + auth_args_primary + [
+                    "-o", str(target_file),
+                    url,
+                ]
+                try:
+                    with _ytdlp_global_lock:
+                        elapsed = time.monotonic() - _ytdlp_last_call_time
+                        if elapsed < _YTDLP_MIN_INTERVAL_SEC:
+                            wait = _YTDLP_MIN_INTERVAL_SEC - elapsed
+                            time.sleep(wait)
+                        _ytdlp_last_call_time = time.monotonic()
+                        res_cookie = subprocess.run(cmd_cookie_direct, capture_output=True, text=True, errors="replace", timeout=180)
+                    if res_cookie.returncode == 0 and target_file.exists() and target_file.stat().st_size > 500_000:
+                        probe_check = self.probe.probe(str(target_file))
+                        if probe_check.get("has_video") and probe_check.get("duration_ms", 0) > 10_000:
+                            logger.info(f"[INGEST] Direct capture SUCCESS (cookies={'yes' if is_cookie else 'no'}): {target_file} ({target_file.stat().st_size / (1024*1024):.2f} MB)")
+                            return target_file
+                    else:
+                        err_snip = (res_cookie.stderr or '')[-250:]
+                        logger.warning(f"[INGEST] Direct slice (cookies={'yes' if is_cookie else 'no'}) returned code {res_cookie.returncode}: {err_snip}")
+                        if is_cookie and any(sig in err_snip for sig in ["cookies are no longer valid", "confirm you're not a bot", "confirm you’re not a bot", "LOGIN_REQUIRED"]):
+                            has_cookies = False
+                            continue
+                except Exception as ce:
+                    logger.warning(f"[INGEST] Direct slice exception: {ce}")
 
         # 3b. Secondary Method: Multi-proxy failover & auto-drop expired cookies (used if no cookies or as fallback)
         # Sentinel: if all proxies are dead (402), we try without proxy as last resort
@@ -300,7 +307,7 @@ class LiveIngestWorker:
                                 return target_file
                         else:
                             stderr_direct = res_direct.stderr or ""
-                            if "--cookies" in auth_args_direct and any(sig in stderr_direct for sig in ["cookies are no longer valid", "confirm you're not a bot", "Use --cookies", "from-browser"]):
+                            if "--cookies" in auth_args_direct and any(sig in stderr_direct for sig in ["cookies are no longer valid", "confirm you're not a bot", "confirm you’re not a bot", "Use --cookies", "from-browser", "LOGIN_REQUIRED"]):
                                 has_cookies = False
                                 continue
                             logger.warning(f"[INGEST][DIRECT] Direct download also failed: {stderr_direct[-200:]}")

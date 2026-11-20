@@ -206,7 +206,7 @@ def get_supervisor_hierarchy():
 
 
 @app.get("/api/diag/ytdlp")
-def diag_ytdlp(url: str = "https://www.youtube.com/watch?v=u1OGXGfOEI0"):
+def diag_ytdlp(url: str = "https://www.youtube.com/watch?v=169ZzvPxvvM", use_cookies: bool = True, client: str = "visionos,ios,web"):
     import subprocess, shutil
     ytdlp = shutil.which("yt-dlp") or "yt-dlp"
     
@@ -231,10 +231,10 @@ def diag_ytdlp(url: str = "https://www.youtube.com/watch?v=u1OGXGfOEI0"):
         ytdlp,
         "-v",
         "--extractor-args", "youtubepot-bgutilhttp:base_url=http://127.0.0.1:4416",
-        "--extractor-args", "youtube:player_client=visionos,ios,web",
+        "--extractor-args", f"youtube:player_client={client}",
         "--skip-download",
     ]
-    if cookie_path.exists() and cookie_path.stat().st_size > 0:
+    if use_cookies and cookie_path.exists() and cookie_path.stat().st_size > 0:
         cmd.extend(["--cookies", str(cookie_path)])
 
     cmd.append(url)
@@ -243,6 +243,8 @@ def diag_ytdlp(url: str = "https://www.youtube.com/watch?v=u1OGXGfOEI0"):
         "returncode": res.returncode,
         "cookie_file_exists": cookie_path.exists(),
         "cookie_file_size": cookie_path.stat().st_size if cookie_path.exists() else 0,
+        "use_cookies": use_cookies,
+        "client": client,
         "env_var_present": bool(b64_env),
         "env_var_len": len(b64_env) if b64_env else 0,
         "stdout": res.stdout,
