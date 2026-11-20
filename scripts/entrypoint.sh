@@ -31,19 +31,19 @@ if [ -x /usr/local/bin/wireproxy ] && [ "${ENABLE_WARP:-0}" = "1" ]; then
     fi
 fi
 
-# Prepare cookies: prioritize repository file /app/data/youtube_cookies.txt
-if [ -f "/app/data/youtube_cookies.txt" ] && [ -s "/app/data/youtube_cookies.txt" ]; then
+# Prepare cookies: prioritize fresh decoding from YOUTUBE_COOKIES_BASE64 to overwrite any stale disk state
+if [ -n "$YOUTUBE_COOKIES_BASE64" ]; then
+    echo "[ENTRYPOINT] Detected YOUTUBE_COOKIES_BASE64 — initializing fresh cookies..."
+    python3 -c "import os, base64, re; raw = os.getenv('YOUTUBE_COOKIES_BASE64', ''); clean = re.sub(r'[^A-Za-z0-9+/=]', '', raw); data = base64.b64decode(clean) if clean else b''; open('/app/data/youtube_cookies.txt', 'wb').write(data) if data else None; open('/tmp/youtube_cookies.txt', 'wb').write(data) if data else None" || true
+    chmod 600 /app/data/youtube_cookies.txt /tmp/youtube_cookies.txt 2>/dev/null || true
+    COOKIE_SIZE=$(wc -c < /app/data/youtube_cookies.txt 2>/dev/null || echo 0)
+    echo "[ENTRYPOINT] Pristine cookies written from env: ${COOKIE_SIZE} bytes"
+elif [ -f "/app/data/youtube_cookies.txt" ] && [ -s "/app/data/youtube_cookies.txt" ]; then
     echo "[ENTRYPOINT] Using verified cookies from /app/data/youtube_cookies.txt"
     cp /app/data/youtube_cookies.txt /tmp/youtube_cookies.txt
     chmod 600 /tmp/youtube_cookies.txt
     COOKIE_SIZE=$(wc -c < /tmp/youtube_cookies.txt 2>/dev/null || echo 0)
     echo "[ENTRYPOINT] Cookies verified: ${COOKIE_SIZE} bytes"
-elif [ -n "$YOUTUBE_COOKIES_BASE64" ]; then
-    echo "[ENTRYPOINT] Detected YOUTUBE_COOKIES_BASE64 — decoding via Python safe decoder..."
-    python3 -c "import os, base64, re; raw = os.getenv('YOUTUBE_COOKIES_BASE64', ''); clean = re.sub(r'[^A-Za-z0-9+/=]', '', raw); open('/tmp/youtube_cookies.txt', 'wb').write(base64.b64decode(clean)) if clean else None" || true
-    chmod 600 /tmp/youtube_cookies.txt 2>/dev/null || true
-    COOKIE_SIZE=$(wc -c < /tmp/youtube_cookies.txt 2>/dev/null || echo 0)
-    echo "[ENTRYPOINT] Cookies decoded: ${COOKIE_SIZE} bytes"
 fi
 
 # Ensure data directories exist

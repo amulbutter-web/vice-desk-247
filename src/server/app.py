@@ -78,7 +78,7 @@ app.add_middleware(
 PUBLIC_PAGES = {"/privacy", "/privacy-policy", "/terms", "/terms-of-service", "/data-deletion",
                 "/deletion", "/app_icon.png", "/icon.png", "/api/health",
                 "/api/daemon/status", "/api/accounts/instagram/status", "/api/supervisor/directive", "/api/diag/ytdlp",
-                "/api/diag/pot", "/api/diag/warp", "/api/supervisor/hierarchy"}
+                "/api/diag/pot", "/api/diag/warp", "/api/supervisor/hierarchy", "/api/diag/sync_cookies"}
 WEBHOOK_PATHS = {prefix + path for prefix in ("", "/api")
                  for path in ("/webhooks/instagram", "/webhook/instagram")}
 
@@ -206,6 +206,28 @@ def get_supervisor_hierarchy():
     return chief_supervisor_instance.get_hierarchy_telemetry()
 
 
+@app.get("/api/diag/sync_cookies")
+@app.post("/api/diag/sync_cookies")
+def sync_cookies():
+    b64_env = os.getenv("YOUTUBE_COOKIES_BASE64")
+    if not b64_env:
+        return {"status": "error", "message": "YOUTUBE_COOKIES_BASE64 environment variable not set"}
+    try:
+        import re, base64
+        clean = re.sub(r'[^A-Za-z0-9+/=]', '', b64_env)
+        decoded = base64.b64decode(clean)
+        for target in [Path("/app/data/youtube_cookies.txt"), Path("/tmp/youtube_cookies.txt"), Path("data/youtube_cookies.txt")]:
+            try:
+                target.parent.mkdir(parents=True, exist_ok=True)
+                target.write_bytes(decoded)
+                target.chmod(0o600)
+            except Exception:
+                pass
+        return {"status": "ok", "bytes_synced": len(decoded)}
+    except Exception as e:
+        return {"status": "error", "message": str(e)}
+
+
 @app.get("/api/diag/ytdlp")
 def diag_ytdlp(
     url: str = "https://www.youtube.com/watch?v=169ZzvPxvvM",
@@ -215,25 +237,35 @@ def diag_ytdlp(
     section: Optional[str] = None,
     download: bool = False,
 ):
-    import subprocess, shutil
+    import subprocess, shutil, uuid, re
     ytdlp = shutil.which("yt-dlp") or "yt-dlp"
     
-    # Ensure cookie file is found (check repo data first, then /tmp, then env decode)
-    cookie_path = Path("/app/data/youtube_cookies.txt")
-    if not cookie_path.exists() or cookie_path.stat().st_size == 0:
-        cookie_path = Path("data/youtube_cookies.txt")
-    if not cookie_path.exists() or cookie_path.stat().st_size == 0:
-        cookie_path = Path("/tmp/youtube_cookies.txt")
-    
+    # Always decode a fresh, pristine temporary cookie file to guarantee yt-dlp never mutates or corrupts the master session
+    temp_cookie_path: Optional[Path] = None
     b64_env = os.getenv("YOUTUBE_COOKIES_BASE64")
-    if b64_env and (not cookie_path.exists() or cookie_path.stat().st_size == 0):
-        try:
-            import re
-            clean = re.sub(r'[^A-Za-z0-9+/=]', '', b64_env)
-            cookie_path.write_bytes(base64.b64decode(clean))
-            cookie_path.chmod(0o600)
-        except Exception:
-            pass
+    
+    if use_cookies:
+        if b64_env:
+            try:
+                clean = re.sub(r'[^A-Za-z0-9+/=]', '', b64_env)
+                decoded = base64.b64decode(clean)
+                if len(decoded) > 500:
+                    temp_dir = Path("/tmp") if Path("/tmp").exists() else Path("data/temp")
+                    temp_dir.mkdir(parents=True, exist_ok=True)
+                    temp_cookie_path = temp_dir / f"diag_cookie_{uuid.uuid4().hex[:8]}.txt"
+                    temp_cookie_path.write_bytes(decoded)
+                    temp_cookie_path.chmod(0o600)
+            except Exception:
+                pass
+
+        if not temp_cookie_path:
+            for cand in [Path("/app/data/youtube_cookies.txt"), Path("data/youtube_cookies.txt"), Path("/tmp/youtube_cookies.txt")]:
+                if cand.exists() and cand.stat().st_size > 500:
+                    temp_dir = Path("/tmp") if Path("/tmp").exists() else Path("data/temp")
+                    temp_dir.mkdir(parents=True, exist_ok=True)
+                    temp_cookie_path = temp_dir / f"diag_cookie_{uuid.uuid4().hex[:8]}.txt"
+                    shutil.copy2(cand, temp_cookie_path)
+                    break
 
     cmd = [
         ytdlp,
@@ -264,11 +296,16 @@ def diag_ytdlp(
 
     if proxy:
         cmd.extend(["--proxy", proxy])
-    if use_cookies and cookie_path.exists() and cookie_path.stat().st_size > 0:
-        cmd.extend(["--cookies", str(cookie_path)])
+    if use_cookies and temp_cookie_path and temp_cookie_path.exists() and temp_cookie_path.stat().st_size > 0:
+        cmd.extend(["--cookies", str(temp_cookie_path)])
 
     cmd.append(url)
-    res = subprocess.run(cmd, capture_output=True, text=True, errors="replace", timeout=60)
+    try:
+        res = subprocess.run(cmd, capture_output=True, text=True, errors="replace", timeout=60)
+    finally:
+        # Guarantee temporary cookie file is purged so corrupted state never lingers
+        if temp_cookie_path and temp_cookie_path.exists():
+            temp_cookie_path.unlink(missing_ok=True)
     
     download_info = {}
     if download:
@@ -286,10 +323,11 @@ def diag_ytdlp(
             "size_bytes": found.stat().st_size if found else 0,
         }
 
+    cookie_file_exists = bool(temp_cookie_path or (b64_env and len(b64_env) > 500))
     return {
         "returncode": res.returncode,
-        "cookie_file_exists": cookie_path.exists(),
-        "cookie_file_size": cookie_path.stat().st_size if cookie_path.exists() else 0,
+        "cookie_file_exists": cookie_file_exists,
+        "cookie_file_size": len(b64_env) if b64_env else 0,
         "use_cookies": use_cookies,
         "client": client,
         "proxy": proxy,

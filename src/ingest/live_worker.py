@@ -173,37 +173,35 @@ class LiveIngestWorker:
         # Multi-proxy candidate pool with automatic failover
         candidate_proxies = get_candidate_proxies()
         # Locate valid pristine cookies file (prioritize verified repo file, then /tmp)
-        cookies_cand = Path("/app/data/youtube_cookies.txt")
-        if not cookies_cand.exists() or cookies_cand.stat().st_size == 0:
-            cookies_cand = Path("data/youtube_cookies.txt")
-        if not cookies_cand.exists() or cookies_cand.stat().st_size == 0:
-            cookies_cand = Path("/tmp/youtube_cookies.txt")
-
-        # Fallback to env decoding only if file does not exist
-        if not cookies_cand.exists() or cookies_cand.stat().st_size == 0:
-            b64_env = os.getenv("YOUTUBE_COOKIES_BASE64")
-            if b64_env:
-                try:
-                    import base64, re
-                    clean = re.sub(r'[^A-Za-z0-9+/=]', '', b64_env)
-                    cookies_cand = Path("/tmp/youtube_cookies.txt")
-                    cookies_cand.write_bytes(base64.b64decode(clean))
-                    cookies_cand.chmod(0o600)
-                except Exception as _ce:
-                    logger.warning(f"Failed to decode YOUTUBE_COOKIES_BASE64: {_ce}")
-
-        has_cookies = (cookies_cand.exists() and cookies_cand.stat().st_size > 0)
-        # Create an isolated temporary copy of cookies so yt-dlp never poisons or mutates the pristine file
+        # Locate or generate pristine cookies
         temp_cookies: Optional[Path] = None
-        if has_cookies:
+        temp_dir = Path("/app/data/temp") if Path("/app/data/temp").exists() else Path("data/temp")
+        temp_dir.mkdir(parents=True, exist_ok=True)
+
+        b64_env = os.getenv("YOUTUBE_COOKIES_BASE64")
+        if b64_env:
             try:
-                temp_dir = Path("/app/data/temp") if Path("/app/data/temp").exists() else Path("data/temp")
-                temp_dir.mkdir(parents=True, exist_ok=True)
-                temp_cookies = temp_dir / f"cookies_{uuid.uuid4().hex[:8]}.txt"
-                shutil.copy2(cookies_cand, temp_cookies)
-            except Exception as _tce:
-                logger.warning(f"Failed to copy cookies to temp file: {_tce}")
-                temp_cookies = cookies_cand
+                import base64, re
+                clean = re.sub(r'[^A-Za-z0-9+/=]', '', b64_env)
+                decoded = base64.b64decode(clean)
+                if len(decoded) > 500:
+                    temp_cookies = temp_dir / f"cookies_{uuid.uuid4().hex[:8]}.txt"
+                    temp_cookies.write_bytes(decoded)
+                    temp_cookies.chmod(0o600)
+            except Exception as _ce:
+                logger.warning(f"Failed to decode YOUTUBE_COOKIES_BASE64: {_ce}")
+
+        if not temp_cookies or not temp_cookies.exists():
+            for cand in [Path("/app/data/youtube_cookies.txt"), Path("data/youtube_cookies.txt"), Path("/tmp/youtube_cookies.txt")]:
+                if cand.exists() and cand.stat().st_size > 500:
+                    try:
+                        temp_cookies = temp_dir / f"cookies_{uuid.uuid4().hex[:8]}.txt"
+                        shutil.copy2(cand, temp_cookies)
+                        break
+                    except Exception as _tce:
+                        logger.warning(f"Failed to copy cookies to temp file: {_tce}")
+
+        has_cookies = bool(temp_cookies and temp_cookies.exists() and temp_cookies.stat().st_size > 500)
 
         # 3. Primary Method: Direct yt-dlp slice with visionos,ios,web and bgutil-pot (via Cloudflare WARP if active)
         if os.path.exists(self.ytdlp_bin) and (url.startswith("http://") or url.startswith("https://")):
@@ -361,7 +359,7 @@ class LiveIngestWorker:
             # Railway IPs are US datacenter — YouTube allows them without proxy for non-geo-restricted content
             if dead_proxy_count >= min(2, len(candidate_proxies[:4])):
                 logger.warning(f"[INGEST] All {dead_proxy_count} tried proxies are dead (402). Attempting DIRECT download (no proxy) as self-healing fallback...")
-                for auth_args_direct in ([["--cookies", str(cookies_cand)]] if has_cookies else []) + [[]]:
+                for auth_args_direct in ([["--cookies", str(temp_cookies)]] if (has_cookies and temp_cookies and temp_cookies.exists()) else []) + [[]]:
                     try:
                         cmd_direct = [
                             self.ytdlp_bin,
@@ -475,6 +473,8 @@ class LiveIngestWorker:
                                 probe_check = self.probe.probe(str(actual_file))
                                 if probe_check.get("has_video") and probe_check.get("duration_ms", 0) > 10_000:
                                     logger.info(f"Fallback stream footage verified: {actual_file} ({actual_file.stat().st_size / (1024*1024):.2f} MB)")
+                                    if temp_cookies and temp_cookies.exists():
+                                        temp_cookies.unlink(missing_ok=True)
                                     return actual_file
                                 else:
                                     actual_file.unlink(missing_ok=True)
@@ -487,6 +487,8 @@ class LiveIngestWorker:
                     logger.warning(f"Direct stream slice error: {eg}")
 
         # CRITICAL HARD QUALITY GATE: Never return dummy sample footage for social media publishing
+        if temp_cookies and temp_cookies.exists():
+            temp_cookies.unlink(missing_ok=True)
         raise RuntimeError(f"Unable to download genuine live stream footage from {url}. Cycle aborted to prevent duplicate/dummy posting.")
 
     def process_url_job(
