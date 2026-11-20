@@ -18,6 +18,34 @@ else
     echo "[ENTRYPOINT] WARNING: /usr/local/bin/bgutil-pot not found. Proceeding with standard yt-dlp extractor."
 fi
 
+# Start Cloudflare WARP userspace SOCKS5 proxy via Wireproxy & wgcf (unlimited free bandwidth)
+if [ -x /usr/local/bin/wgcf ] && [ -x /usr/local/bin/wireproxy ]; then
+    echo "[ENTRYPOINT] Initializing Cloudflare WARP userspace proxy..."
+    mkdir -p /app/data/warp
+    cd /app/data/warp
+    if [ ! -f "wgcf-account.toml" ]; then
+        echo "[ENTRYPOINT] Registering Cloudflare WARP account..."
+        /usr/local/bin/wgcf register --accept-tos || true
+    fi
+    if [ -f "wgcf-account.toml" ] && [ ! -f "wgcf-profile.conf" ]; then
+        echo "[ENTRYPOINT] Generating Cloudflare WARP WireGuard profile..."
+        /usr/local/bin/wgcf generate || true
+    fi
+    if [ -f "wgcf-profile.conf" ]; then
+        cat <<EOF > wireproxy.conf
+WGConfig = /app/data/warp/wgcf-profile.conf
+
+[Socks5]
+BindAddress = 127.0.0.1:1080
+EOF
+        echo "[ENTRYPOINT] Starting wireproxy SOCKS5 on 127.0.0.1:1080..."
+        /usr/local/bin/wireproxy -c /app/data/warp/wireproxy.conf &
+        sleep 2
+        echo "[ENTRYPOINT] Cloudflare WARP wireproxy started successfully."
+    fi
+    cd /app
+fi
+
 # Prepare cookies: prioritize repository file /app/data/youtube_cookies.txt
 if [ -f "/app/data/youtube_cookies.txt" ] && [ -s "/app/data/youtube_cookies.txt" ]; then
     echo "[ENTRYPOINT] Using verified cookies from /app/data/youtube_cookies.txt"

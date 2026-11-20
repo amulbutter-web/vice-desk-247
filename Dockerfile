@@ -40,6 +40,13 @@ RUN mkdir -p /root/.config/yt-dlp/plugins \
     && unzip /tmp/plugin.zip -d /root/.config/yt-dlp/plugins/ \
     && rm /tmp/plugin.zip
 
+# Install wgcf and wireproxy for Cloudflare WARP userspace SOCKS5 bridge (unlimited free bandwidth)
+RUN curl -fsSL -o /usr/local/bin/wgcf \
+    https://github.com/ViRb3/wgcf/releases/download/v2.2.26/wgcf_2.2.26_linux_amd64 \
+    && chmod +x /usr/local/bin/wgcf \
+    && curl -fsSL https://github.com/windtf/wireproxy/releases/download/v1.0.9/wireproxy_linux_amd64.tar.gz | tar -xz -C /usr/local/bin wireproxy \
+    && chmod +x /usr/local/bin/wireproxy
+
 # Copy dependencies manifest
 COPY pyproject.toml ./
 

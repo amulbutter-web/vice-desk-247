@@ -77,7 +77,7 @@ app.add_middleware(
 PUBLIC_PAGES = {"/privacy", "/privacy-policy", "/terms", "/terms-of-service", "/data-deletion",
                 "/deletion", "/app_icon.png", "/icon.png", "/api/health",
                 "/api/daemon/status", "/api/accounts/instagram/status", "/api/supervisor/directive", "/api/diag/ytdlp",
-                "/api/diag/pot", "/api/supervisor/hierarchy"}
+                "/api/diag/pot", "/api/diag/warp", "/api/supervisor/hierarchy"}
 WEBHOOK_PATHS = {prefix + path for prefix in ("", "/api")
                  for path in ("/webhooks/instagram", "/webhook/instagram")}
 
@@ -271,6 +271,24 @@ def diag_pot():
     except Exception as pe:
         results["/get_pot_post"] = {"error": str(pe)}
     return results
+
+
+@app.get("/api/diag/warp")
+def diag_warp():
+    import subprocess
+    try:
+        res = subprocess.run(
+            ["curl", "-s", "--proxy", "socks5h://127.0.0.1:1080", "https://www.cloudflare.com/cdn-cgi/trace"],
+            capture_output=True, text=True, timeout=8
+        )
+        return {
+            "status": "ok" if res.returncode == 0 else "failed",
+            "returncode": res.returncode,
+            "trace": res.stdout,
+            "error": res.stderr
+        }
+    except Exception as e:
+        return {"status": "error", "error": str(e)}
 
 
 

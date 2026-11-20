@@ -54,15 +54,28 @@ WEBSHARE_PROXIES = [
 
 def get_candidate_proxies() -> List[str]:
     primary = os.getenv("YOUTUBE_PROXY")
-    # If YOUTUBE_PROXY is explicitly empty or 'none' or 'direct', do NOT use proxy pool
-    if primary == "" or primary == "none" or primary == "direct":
+    # If YOUTUBE_PROXY is explicitly 'none' or 'direct', do NOT use proxy pool
+    if primary in ("none", "direct"):
         return []
-    pool = list(WEBSHARE_PROXIES)
-    if primary and primary in pool:
-        pool.remove(primary)
+    
+    pool = []
+    # Priority 1: Cloudflare WARP wireproxy SOCKS5 bridge on localhost:1080
+    warp_proxy = "socks5://127.0.0.1:1080"
+    try:
+        import socket
+        s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        s.settimeout(0.3)
+        if s.connect_ex(("127.0.0.1", 1080)) == 0:
+            pool.append(warp_proxy)
+        s.close()
+    except Exception:
+        pass
+
+    if primary and primary not in pool:
         pool.insert(0, primary)
-    elif primary:
-        pool.insert(0, primary)
+    for wp in WEBSHARE_PROXIES:
+        if wp not in pool:
+            pool.append(wp)
     return pool
 
 def _proxy_is_dead(stderr: str) -> bool:
@@ -162,12 +175,16 @@ class LiveIngestWorker:
 
         has_cookies = (cookies_cand.exists() and cookies_cand.stat().st_size > 0)
 
-        # 3. Primary Method: Direct yt-dlp slice with visionos,ios,web and bgutil-pot
+        # 3. Primary Method: Direct yt-dlp slice with visionos,ios,web and bgutil-pot (via Cloudflare WARP if active)
         if os.path.exists(self.ytdlp_bin) and (url.startswith("http://") or url.startswith("https://")):
-            primary_strategies = ([["--cookies", str(cookies_cand)]] if has_cookies else []) + [[]]
+            warp_arg = ["--proxy", "socks5://127.0.0.1:1080"] if ("socks5://127.0.0.1:1080" in candidate_proxies) else []
+            primary_strategies = (
+                [[*warp_arg, "--cookies", str(cookies_cand)]] if has_cookies else []
+            ) + ([warp_arg] if warp_arg else []) + [[]]
             for auth_args_primary in primary_strategies:
                 is_cookie = "--cookies" in auth_args_primary
-                logger.info(f"[INGEST] Downloading stream footage [{section_range}] via direct yt-dlp (cookies={'yes' if is_cookie else 'no'})...")
+                is_warp = "--proxy" in auth_args_primary
+                logger.info(f"[INGEST] Downloading stream footage [{section_range}] via direct yt-dlp (warp={'yes' if is_warp else 'no'}, cookies={'yes' if is_cookie else 'no'})...")
                 cmd_cookie_direct = [
                     self.ytdlp_bin,
                     "-4",
