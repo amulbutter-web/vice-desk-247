@@ -54,6 +54,9 @@ WEBSHARE_PROXIES = [
 
 def get_candidate_proxies() -> List[str]:
     primary = os.getenv("YOUTUBE_PROXY")
+    # If YOUTUBE_PROXY is explicitly empty or 'none' or 'direct', do NOT use proxy pool
+    if primary == "" or primary == "none" or primary == "direct":
+        return []
     pool = list(WEBSHARE_PROXIES)
     if primary and primary in pool:
         pool.remove(primary)
@@ -63,15 +66,17 @@ def get_candidate_proxies() -> List[str]:
     return pool
 
 def _proxy_is_dead(stderr: str) -> bool:
-    """Returns True if the proxy itself is dead (402 Payment Required / connection refused)."""
+    """Returns True if the proxy itself is dead (402 Payment Required / connection refused / error page)."""
     dead_signals = [
         "402 Payment Required",
         "Tunnel connection failed",
         "Unable to connect to proxy",
         "ProxyError",
         "Cannot connect to proxy",
+        "invalid start byte",
+        "codec can't decode",
     ]
-    return any(sig in stderr for sig in dead_signals)
+    return any(sig.lower() in stderr.lower() for sig in dead_signals)
 
 # Global rate-limiter: only 1 yt-dlp process runs at a time across all workers
 # Prevents 3 workers simultaneously hammering YouTube's rate-limit detection
@@ -93,6 +98,7 @@ class LiveIngestWorker:
         Uses yt-dlp -g + FFmpeg direct stream slicing with HTTP User-Agent.
         NEVER falls back to dummy sample footage for social publishing.
         """
+        global _ytdlp_last_call_time
         output_dir.mkdir(parents=True, exist_ok=True)
 
         # 1. Local file passthrough
@@ -146,7 +152,43 @@ class LiveIngestWorker:
 
         has_cookies = (cookies_cand.exists() and cookies_cand.stat().st_size > 0)
 
-        # 3. Primary Method: Native yt-dlp slice with multi-proxy failover & auto-drop expired cookies
+        # 3. Primary Method: Direct yt-dlp slice with authenticated session cookies (Permanent, ultra-fast, zero proxy needed)
+        if os.path.exists(self.ytdlp_bin) and (url.startswith("http://") or url.startswith("https://")) and has_cookies:
+            logger.info(f"[INGEST] Downloading stream footage [{section_range}] via direct yt-dlp with authenticated cookies...")
+            cmd_cookie_direct = [
+                self.ytdlp_bin,
+                "-4",
+                "--extractor-args", "youtube:player_client=android,ios,web",
+                "--sleep-interval", "1",
+                "--max-sleep-interval", "3",
+                "-f", "bestvideo[height<=1080]+bestaudio/best[height<=1080]/best",
+                "--download-sections", section_range,
+                "--force-overwrites",
+                "--no-playlist",
+                "--no-warnings",
+                "--cookies", str(cookies_cand),
+                "-o", str(target_file),
+                url,
+            ]
+            try:
+                with _ytdlp_global_lock:
+                    elapsed = time.monotonic() - _ytdlp_last_call_time
+                    if elapsed < _YTDLP_MIN_INTERVAL_SEC:
+                        wait = _YTDLP_MIN_INTERVAL_SEC - elapsed
+                        time.sleep(wait)
+                    _ytdlp_last_call_time = time.monotonic()
+                    res_cookie = subprocess.run(cmd_cookie_direct, capture_output=True, text=True, timeout=180)
+                if res_cookie.returncode == 0 and target_file.exists() and target_file.stat().st_size > 500_000:
+                    probe_check = self.probe.probe(str(target_file))
+                    if probe_check.get("has_video") and probe_check.get("duration_ms", 0) > 10_000:
+                        logger.info(f"[INGEST] Direct authenticated cookie capture SUCCESS: {target_file} ({target_file.stat().st_size / (1024*1024):.2f} MB)")
+                        return target_file
+                else:
+                    logger.warning(f"[INGEST] Direct cookie slice returned code {res_cookie.returncode}: {(res_cookie.stderr or '')[-250:]}")
+            except Exception as ce:
+                logger.warning(f"[INGEST] Direct cookie slice exception: {ce}")
+
+        # 3b. Secondary Method: Multi-proxy failover & auto-drop expired cookies (used if no cookies or as fallback)
         # Sentinel: if all proxies are dead (402), we try without proxy as last resort
         all_proxies_dead = False
         dead_proxy_count = 0
@@ -175,7 +217,6 @@ class LiveIngestWorker:
                             "-o", str(target_file),
                         ] + auth_args + [url]
 
-                        global _ytdlp_last_call_time
                         with _ytdlp_global_lock:
                             elapsed = time.monotonic() - _ytdlp_last_call_time
                             if elapsed < _YTDLP_MIN_INTERVAL_SEC:
