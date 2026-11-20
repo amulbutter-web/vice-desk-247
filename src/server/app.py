@@ -256,12 +256,20 @@ def diag_ytdlp(url: str = "https://www.youtube.com/watch?v=169ZzvPxvvM", use_coo
 def diag_pot():
     import urllib.request
     results = {}
-    for path in ["/", "/ping", "/token", "/get_pot"]:
+    for path in ["/", "/ping", "/token"]:
         try:
             req = urllib.request.urlopen(f"http://127.0.0.1:4416{path}", timeout=3)
             results[path] = {"code": req.getcode(), "body": req.read().decode(errors="replace")}
         except Exception as e:
             results[path] = {"error": str(e)}
+    # Test POST /get_pot
+    try:
+        data = b'{}'
+        req_post = urllib.request.Request("http://127.0.0.1:4416/get_pot", data=data, headers={"Content-Type": "application/json"})
+        resp = urllib.request.urlopen(req_post, timeout=5)
+        results["/get_pot_post"] = {"code": resp.getcode(), "body": resp.read().decode(errors="replace")}
+    except Exception as pe:
+        results["/get_pot_post"] = {"error": str(pe)}
     return results
 
 
