@@ -4,6 +4,7 @@ Executes media composition jobs, monitors rendering progress,
 enforces timeouts, and validates the output file.
 """
 import subprocess
+import threading
 from pathlib import Path
 from typing import Dict, Any, Optional, List
 from src.config import settings
@@ -14,6 +15,11 @@ from src.ingest.probe import MediaProbe, MediaProbeError
 
 class RenderError(Exception):
     pass
+
+
+# Global rendering semaphore: allows exactly 1 FFmpeg render process across all threads
+# Prevents cloud container Out-Of-Memory (OOM) SIGKILL (exit code -9)
+_RENDER_GLOBAL_SEMAPHORE = threading.Semaphore(1)
 
 
 class VideoRenderer:
@@ -47,7 +53,8 @@ class VideoRenderer:
         )
 
         try:
-            res = subprocess.run(cmd, capture_output=True, text=True, timeout=timeout_sec)
+            with _RENDER_GLOBAL_SEMAPHORE:
+                res = subprocess.run(cmd, capture_output=True, text=True, timeout=timeout_sec)
             if res.returncode != 0:
                 raise RenderError(f"FFmpeg failed with exit code {res.returncode}: {res.stderr}")
         except subprocess.TimeoutExpired:

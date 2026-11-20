@@ -6,7 +6,7 @@ historic moments are prioritized, published once, and never duplicated.
 """
 import logging
 from typing import List, Dict, Any, Optional
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 from src.db.database import get_db_session, init_db
 from src.db.models import FirstTimeEvent
 
@@ -360,10 +360,26 @@ class FirstTimeLedger:
 
     def get_next_scheduled_event(self) -> Optional[Dict[str, Any]]:
         """Pulls the highest-priority SCHEDULED event from the database.
-        Automatically retries high-priority curated events ONLY if failure count < MAX_CONSECUTIVE_FAILURES.
+        Atomically transitions the event to PROCESSING to prevent duplicate worker pickup.
+        Automatically retries failed events ONLY if failure count < MAX_CONSECUTIVE_FAILURES.
         Guarantees already published events are never picked up.
         CIRCUIT BREAKER: Events that fail 5+ times consecutively are permanently parked."""
         with get_db_session() as session:
+            # Self-healing: Unstick stale PROCESSING events older than 15 minutes
+            try:
+                stale_cutoff = datetime.now(timezone.utc) - timedelta(minutes=15)
+                stale_events = session.query(FirstTimeEvent).filter(
+                    FirstTimeEvent.status == "PROCESSING",
+                    FirstTimeEvent.created_at_utc < stale_cutoff
+                ).all()
+                for st in stale_events:
+                    st.status = "SCHEDULED"
+                    logger.info(f"[FIRST_TIME_LEDGER] Self-healing: Reset stale PROCESSING event '{st.headline}'")
+                if stale_events:
+                    session.commit()
+            except Exception as _stuck_err:
+                logger.debug(f"[FIRST_TIME_LEDGER] Stale reset note: {_stuck_err}")
+
             candidates = session.query(FirstTimeEvent).filter_by(status="SCHEDULED").order_by(FirstTimeEvent.priority.desc(), FirstTimeEvent.created_at_utc.asc()).all()
             for cand in candidates:
                 # If already published has media_id in metadata, mark published and skip
@@ -374,6 +390,11 @@ class FirstTimeLedger:
                 if cand.metadata_json and cand.metadata_json.get("_perm_failed"):
                     cand.status = "FAILED_PERMANENT"
                     continue
+                
+                # Atomically mark PROCESSING so no other worker picks up this event simultaneously
+                cand.status = "PROCESSING"
+                session.commit()
+
                 return {
                     "id": cand.id,
                     "creator": cand.creator,
@@ -386,11 +407,10 @@ class FirstTimeLedger:
                     "metadata": cand.metadata_json or {},
                 }
 
-            # Automatic recovery: retry curated events (priority >= 70) that failed due to previous transient errors
-            # BUT only if failure count is below threshold (circuit breaker)
+            # Automatic self-healing recovery: retry ALL events that failed due to previous transient errors (proxy block, OOM, etc.)
+            # as long as failure count is below threshold (circuit breaker)
             failed_candidates = session.query(FirstTimeEvent).filter(
-                FirstTimeEvent.status == "FAILED",
-                FirstTimeEvent.priority >= 70
+                FirstTimeEvent.status == "FAILED"
             ).order_by(FirstTimeEvent.priority.desc(), FirstTimeEvent.created_at_utc.asc()).all()
             for cand in failed_candidates:
                 if cand.metadata_json and cand.metadata_json.get("media_id"):
@@ -400,16 +420,17 @@ class FirstTimeLedger:
                 meta = cand.metadata_json or {}
                 fail_count = meta.get("_consecutive_failures", 0)
                 if fail_count >= self.MAX_CONSECUTIVE_FAILURES:
-                    # Park this event permanently — systematic failure (YouTube blocked, all API keys dead)
+                    # Park this event permanently
                     logger.warning(f"[FIRST_TIME_LEDGER] CIRCUIT BREAKER: Event '{cand.headline}' failed {fail_count}x — parked as FAILED_PERMANENT")
                     new_meta = dict(meta)
                     new_meta["_perm_failed"] = True
                     cand.metadata_json = new_meta
                     cand.status = "FAILED_PERMANENT"
                     continue
-                # Safe to retry
-                cand.status = "SCHEDULED"
-                logger.info(f"[FIRST_TIME_LEDGER] Retrying curated event (attempt {fail_count+1}/{self.MAX_CONSECUTIVE_FAILURES}): {cand.headline}")
+                # Safe to retry — mark PROCESSING atomically
+                cand.status = "PROCESSING"
+                session.commit()
+                logger.info(f"[FIRST_TIME_LEDGER] Self-healing retry (attempt {fail_count+1}/{self.MAX_CONSECUTIVE_FAILURES}): {cand.headline}")
                 return {
                     "id": cand.id,
                     "creator": cand.creator,

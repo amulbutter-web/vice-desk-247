@@ -447,7 +447,7 @@ class ChiefSupervisorAgent:
         # Operational State
         self.running = False
         self.worker_threads: List[threading.Thread] = []
-        self.concurrency_workers = 3  # 3 parallel worker pipelines
+        self.concurrency_workers = 2  # 2 parallel worker pipelines (optimal for Railway RAM limit)
         self.total_published = 0
         self.cycle_count = 0
         self.stall_cycles = 0
@@ -497,8 +497,8 @@ class ChiefSupervisorAgent:
 
             # Circuit breaker: exponential backoff on consecutive failures
             if consecutive_failures >= MAX_CONSECUTIVE_BEFORE_PAUSE:
-                logger.error(f"[WORKER-{worker_id}] CIRCUIT BREAKER: {consecutive_failures} consecutive failures — sleeping 30min to allow YouTube/Groq recovery")
-                time.sleep(1800)
+                logger.warning(f"[WORKER-{worker_id}] Auto-throttling ({consecutive_failures} fails) — sleeping 120s to allow proxy recovery")
+                time.sleep(120)
                 consecutive_failures = 0
                 continue
             elif consecutive_failures >= MAX_CONSECUTIVE_BEFORE_BACKOFF:

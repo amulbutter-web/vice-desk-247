@@ -12,7 +12,7 @@ import logging
 import threading
 import time
 from pathlib import Path
-from typing import Dict, Any, Optional
+from typing import Dict, Any, Optional, List, Tuple
 
 from src.config import settings
 from src.db.database import get_db_session
@@ -37,11 +37,35 @@ from src.db.database import init_db
 logger = logging.getLogger("live_worker")
 groq_pool = GroqPool()
 
+# Verified pool of Webshare residential proxies for automatic failover
+WEBSHARE_PROXIES = [
+    "http://msmaqhck:p6o0ndp2jz3v@84.247.60.125:6095",
+    "http://msmaqhck:p6o0ndp2jz3v@191.96.254.138:6185",
+    "http://msmaqhck:p6o0ndp2jz3v@198.46.161.42:5092",
+    "http://msmaqhck:p6o0ndp2jz3v@64.137.10.153:5803",
+    "http://msmaqhck:p6o0ndp2jz3v@104.164.49.38:7693",
+    "http://msmaqhck:p6o0ndp2jz3v@23.26.71.145:5628",
+    "http://msmaqhck:p6o0ndp2jz3v@45.38.107.97:6014",
+    "http://msmaqhck:p6o0ndp2jz3v@64.137.96.74:6641",
+    "http://msmaqhck:p6o0ndp2jz3v@198.23.243.226:6361",
+    "http://msmaqhck:p6o0ndp2jz3v@38.154.185.97:6370",
+]
+
+def get_candidate_proxies() -> List[str]:
+    primary = os.getenv("YOUTUBE_PROXY")
+    pool = list(WEBSHARE_PROXIES)
+    if primary and primary in pool:
+        pool.remove(primary)
+        pool.insert(0, primary)
+    elif primary:
+        pool.insert(0, primary)
+    return pool
+
 # Global rate-limiter: only 1 yt-dlp process runs at a time across all workers
 # Prevents 3 workers simultaneously hammering YouTube's rate-limit detection
 _ytdlp_global_lock = threading.Semaphore(1)
 _ytdlp_last_call_time: float = 0.0
-_YTDLP_MIN_INTERVAL_SEC = 8  # Minimum 8 seconds between any two yt-dlp calls globally
+_YTDLP_MIN_INTERVAL_SEC = 5  # Throttled between any two yt-dlp calls globally
 
 
 class LiveIngestWorker:
@@ -96,11 +120,10 @@ class LiveIngestWorker:
             "(KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
         )
 
-        # Build resilient yt-dlp authentication & POT bypass arguments
-        auth_args = []
+        # Multi-proxy candidate pool with automatic failover
+        candidate_proxies = get_candidate_proxies()
         cookies_cand = Path("/tmp/youtube_cookies.txt")
         b64_env = os.getenv("YOUTUBE_COOKIES_BASE64")
-        # Always re-decode from env var to ensure fresh, non-corrupt cookies file
         if b64_env:
             try:
                 import base64
@@ -109,139 +132,156 @@ class LiveIngestWorker:
             except Exception as _ce:
                 logger.warning(f"Failed to decode YOUTUBE_COOKIES_BASE64: {_ce}")
 
-        if not cookies_cand.exists() and Path("data/youtube_cookies.txt").exists():
-            cookies_cand = Path("data/youtube_cookies.txt")
-        if cookies_cand.exists() and cookies_cand.stat().st_size > 0:
-            auth_args.extend(["--cookies", str(cookies_cand)])
+        has_cookies = (cookies_cand.exists() and cookies_cand.stat().st_size > 0)
 
-        proxy_cand = os.getenv("YOUTUBE_PROXY") or os.getenv("HTTP_PROXY") or os.getenv("HTTPS_PROXY")
-        if proxy_cand:
-            auth_args.extend(["--proxy", proxy_cand])
-
-        # 3. Primary Method: Native yt-dlp slice (fast, exact timestamps, merges audio/video in 1080p60)
+        # 3. Primary Method: Native yt-dlp slice with multi-proxy failover & auto-drop expired cookies
         if os.path.exists(self.ytdlp_bin) and (url.startswith("http://") or url.startswith("https://")):
-            try:
-                logger.info(f"Downloading stream footage [{section_range}] via yt-dlp: {url}...")
-                cmd_native = [
-                    self.ytdlp_bin,
-                    "-4",
-                    "--extractor-args", "youtubepot-bgutilhttp:base_url=http://127.0.0.1:4416",
-                    "--extractor-args", "youtube:player_client=mweb,android,web",
-                    "--sleep-interval", "5",
-                    "--max-sleep-interval", "10",
-                    "-f", "best[height<=1080]/bestvideo[height<=1080]+bestaudio/best",
-                    "--download-sections", section_range,
-                    "--force-overwrites",
-                    "--no-playlist",
-                    "--no-warnings",
-                    "-o", str(target_file),
-                ] + auth_args + [url]
-                # Acquire global rate-limiter to serialize yt-dlp calls across workers
-                global _ytdlp_last_call_time
-                with _ytdlp_global_lock:
-                    elapsed = time.monotonic() - _ytdlp_last_call_time
-                    if elapsed < _YTDLP_MIN_INTERVAL_SEC:
-                        wait = _YTDLP_MIN_INTERVAL_SEC - elapsed
-                        logger.info(f"[RateGuard] Throttling yt-dlp — waiting {wait:.1f}s before next call")
-                        time.sleep(wait)
-                    _ytdlp_last_call_time = time.monotonic()
-                    res_nat = subprocess.run(cmd_native, capture_output=True, text=True, timeout=180)
-                if res_nat.returncode == 0 and target_file.exists() and target_file.stat().st_size > 500_000:
+            for p_idx, current_proxy in enumerate(candidate_proxies[:4]):
+                # Determine auth strategies for this proxy: first with cookies (if any), then without cookies
+                strategies = []
+                if has_cookies:
+                    strategies.append(["--cookies", str(cookies_cand), "--proxy", current_proxy])
+                strategies.append(["--proxy", current_proxy])
+
+                for auth_args in strategies:
                     try:
-                        probe_check = self.probe.probe(str(target_file))
-                        if probe_check.get("has_video") and probe_check.get("duration_ms", 0) > 10_000:
-                            logger.info(f"Native yt-dlp captured verified footage: {target_file} ({target_file.stat().st_size / (1024*1024):.2f} MB)")
-                            return target_file
-                        else:
-                            logger.warning(f"Native yt-dlp file invalid/too short ({probe_check.get('duration_ms', 0)}ms) — trying fallback")
-                            target_file.unlink(missing_ok=True)
-                    except Exception as p_err:
-                        logger.warning(f"Native yt-dlp probe error: {p_err}")
-                        target_file.unlink(missing_ok=True)
-                else:
-                    logger.warning(f"Native yt-dlp returned code {res_nat.returncode}: {res_nat.stderr[-500:] if res_nat.stderr else ''}")
-            except Exception as en:
-                logger.warning(f"Native yt-dlp slice error: {en}")
+                        logger.info(f"[INGEST] Downloading stream footage [{section_range}] via yt-dlp (proxy #{p_idx+1}: {current_proxy.split('@')[-1]}, cookies={'yes' if '--cookies' in auth_args else 'no'})...")
+                        cmd_native = [
+                            self.ytdlp_bin,
+                            "-4",
+                            "--extractor-args", "youtubepot-bgutilhttp:base_url=http://127.0.0.1:4416",
+                            "--extractor-args", "youtube:player_client=mweb,android,web",
+                            "--sleep-interval", "3",
+                            "--max-sleep-interval", "7",
+                            "-f", "best[height<=1080]/bestvideo[height<=1080]+bestaudio/best",
+                            "--download-sections", section_range,
+                            "--force-overwrites",
+                            "--no-playlist",
+                            "--no-warnings",
+                            "-o", str(target_file),
+                        ] + auth_args + [url]
 
-            # 4. Fallback Method: yt-dlp -g + FFmpeg direct slice with proper HTTP User-Agent header
-            try:
-                logger.info(f"Fallback: Extracting live stream URLs for {url} [{start_str} +{duration_sec}s]...")
-                cmd_g = [
-                    self.ytdlp_bin,
-                    "-4",
-                    "--extractor-args", "youtubepot-bgutilhttp:base_url=http://127.0.0.1:4416",
-                    "--extractor-args", "youtube:player_client=mweb,android,web",
-                    "--sleep-interval", "5",
-                    "--max-sleep-interval", "10",
-                    "-g",
-                    "-f", "best[height<=1080]/bestvideo[height<=1080]+bestaudio/best",
-                    "--no-warnings",
-                ] + auth_args + [url]
-                # Acquire rate-limiter for fallback call too
-                with _ytdlp_global_lock:
-                    elapsed = time.monotonic() - _ytdlp_last_call_time
-                    if elapsed < _YTDLP_MIN_INTERVAL_SEC:
-                        time.sleep(_YTDLP_MIN_INTERVAL_SEC - elapsed)
-                    _ytdlp_last_call_time = time.monotonic()
-                    res_g = subprocess.run(cmd_g, capture_output=True, text=True, timeout=25)
-                if res_g.returncode == 0 and res_g.stdout.strip():
-                    stream_urls = res_g.stdout.strip().splitlines()
-                    if len(stream_urls) >= 2:
-                        v_url, a_url = stream_urls[0], stream_urls[1]
-                        cmd_ff = [
-                            self.ffmpeg_bin, "-y",
-                            "-threads", "2",
-                            "-protocol_whitelist", "file,http,https,tcp,tls",
-                            "-reconnect", "1",
-                            "-reconnect_at_eof", "1",
-                            "-reconnect_streamed", "1",
-                            "-reconnect_delay_max", "5",
-                            "-user_agent", ua,
-                            "-ss", start_str,
-                            "-i", v_url,
-                            "-protocol_whitelist", "file,http,https,tcp,tls",
-                            "-user_agent", ua,
-                            "-ss", start_str,
-                            "-i", a_url,
-                            "-t", str(duration_sec),
-                            "-c:v", "copy",
-                            "-c:a", "aac",
-                            str(target_file),
-                        ]
-                    else:
-                        v_url = stream_urls[0]
-                        cmd_ff = [
-                            self.ffmpeg_bin, "-y",
-                            "-threads", "2",
-                            "-protocol_whitelist", "file,http,https,tcp,tls",
-                            "-reconnect", "1",
-                            "-reconnect_at_eof", "1",
-                            "-reconnect_streamed", "1",
-                            "-reconnect_delay_max", "5",
-                            "-user_agent", ua,
-                            "-ss", start_str,
-                            "-i", v_url,
-                            "-t", str(duration_sec),
-                            "-c", "copy",
-                            str(target_file),
-                        ]
+                        global _ytdlp_last_call_time
+                        with _ytdlp_global_lock:
+                            elapsed = time.monotonic() - _ytdlp_last_call_time
+                            if elapsed < _YTDLP_MIN_INTERVAL_SEC:
+                                wait = _YTDLP_MIN_INTERVAL_SEC - elapsed
+                                logger.info(f"[RateGuard] Throttling yt-dlp — waiting {wait:.1f}s before next call")
+                                time.sleep(wait)
+                            _ytdlp_last_call_time = time.monotonic()
+                            res_nat = subprocess.run(cmd_native, capture_output=True, text=True, timeout=180)
 
-                    res_ff = subprocess.run(cmd_ff, capture_output=True, text=True, timeout=120)
-                    if res_ff.returncode == 0 and target_file.exists() and target_file.stat().st_size > 500_000:
-                        try:
-                            probe_check = self.probe.probe(str(target_file))
-                            if probe_check.get("has_video") and probe_check.get("duration_ms", 0) > 10_000:
-                                logger.info(f"Fallback stream footage verified: {target_file} ({target_file.stat().st_size / (1024*1024):.2f} MB)")
-                                return target_file
-                            else:
+                        if res_nat.returncode == 0 and target_file.exists() and target_file.stat().st_size > 500_000:
+                            try:
+                                probe_check = self.probe.probe(str(target_file))
+                                if probe_check.get("has_video") and probe_check.get("duration_ms", 0) > 10_000:
+                                    logger.info(f"Native yt-dlp captured verified footage: {target_file} ({target_file.stat().st_size / (1024*1024):.2f} MB)")
+                                    return target_file
+                                else:
+                                    logger.warning(f"Native yt-dlp file invalid/too short ({probe_check.get('duration_ms', 0)}ms) — trying next")
+                                    target_file.unlink(missing_ok=True)
+                            except Exception as p_err:
+                                logger.warning(f"Native yt-dlp probe error: {p_err}")
                                 target_file.unlink(missing_ok=True)
-                        except Exception as p_err:
-                            logger.warning(f"Fallback probe error: {p_err}")
-                            target_file.unlink(missing_ok=True)
-                    else:
-                        logger.warning(f"Fallback FFmpeg direct slice failed (code {res_ff.returncode}): {res_ff.stderr[-200:] if res_ff.stderr else ''}")
-            except Exception as eg:
-                logger.warning(f"Direct stream slice error: {eg}")
+                        else:
+                            stderr_out = res_nat.stderr if res_nat.stderr else ""
+                            # Self-healing: if cookies were rejected or bot verification hit, drop cookies immediately
+                            if "--cookies" in auth_args and any(sig in stderr_out for sig in ["cookies are no longer valid", "confirm you're not a bot", "confirm you’re not a bot"]):
+                                logger.warning(f"[INGEST] YouTube rejected cookies on proxy {current_proxy.split('@')[-1]}. Auto-dropping cookies and retrying clean proxy...")
+                                has_cookies = False  # Don't try cookies again
+                                continue
+                            logger.warning(f"[INGEST] yt-dlp returned code {res_nat.returncode} on proxy {current_proxy.split('@')[-1]}: {stderr_out[-300:]}")
+                            # Break to next proxy
+                            break
+                    except Exception as en:
+                        logger.warning(f"[INGEST] yt-dlp slice error on proxy {current_proxy.split('@')[-1]}: {en}")
+                        break
+
+            # 4. Fallback Method: yt-dlp -g + FFmpeg direct slice with residential proxy
+            for current_proxy in candidate_proxies[:2]:
+                try:
+                    logger.info(f"Fallback: Extracting live stream URLs for {url} [{start_str} +{duration_sec}s] via proxy {current_proxy.split('@')[-1]}...")
+                    cmd_g = [
+                        self.ytdlp_bin,
+                        "-4",
+                        "--extractor-args", "youtubepot-bgutilhttp:base_url=http://127.0.0.1:4416",
+                        "--extractor-args", "youtube:player_client=mweb,android,web",
+                        "--proxy", current_proxy,
+                        "--sleep-interval", "3",
+                        "--max-sleep-interval", "7",
+                        "-g",
+                        "-f", "best[height<=1080]/bestvideo[height<=1080]+bestaudio/best",
+                        "--no-warnings",
+                        url,
+                    ]
+                    with _ytdlp_global_lock:
+                        elapsed = time.monotonic() - _ytdlp_last_call_time
+                        if elapsed < _YTDLP_MIN_INTERVAL_SEC:
+                            time.sleep(_YTDLP_MIN_INTERVAL_SEC - elapsed)
+                        _ytdlp_last_call_time = time.monotonic()
+                        res_g = subprocess.run(cmd_g, capture_output=True, text=True, timeout=30)
+
+                    if res_g.returncode == 0 and res_g.stdout.strip():
+                        stream_urls = res_g.stdout.strip().splitlines()
+                        if len(stream_urls) >= 2:
+                            v_url, a_url = stream_urls[0], stream_urls[1]
+                            cmd_ff = [
+                                self.ffmpeg_bin, "-y",
+                                "-threads", "2",
+                                "-http_proxy", current_proxy,
+                                "-protocol_whitelist", "file,http,https,tcp,tls",
+                                "-reconnect", "1",
+                                "-reconnect_at_eof", "1",
+                                "-reconnect_streamed", "1",
+                                "-reconnect_delay_max", "5",
+                                "-user_agent", ua,
+                                "-ss", start_str,
+                                "-i", v_url,
+                                "-http_proxy", current_proxy,
+                                "-protocol_whitelist", "file,http,https,tcp,tls",
+                                "-user_agent", ua,
+                                "-ss", start_str,
+                                "-i", a_url,
+                                "-t", str(duration_sec),
+                                "-c:v", "copy",
+                                "-c:a", "aac",
+                                str(target_file),
+                            ]
+                        else:
+                            v_url = stream_urls[0]
+                            cmd_ff = [
+                                self.ffmpeg_bin, "-y",
+                                "-threads", "2",
+                                "-http_proxy", current_proxy,
+                                "-protocol_whitelist", "file,http,https,tcp,tls",
+                                "-reconnect", "1",
+                                "-reconnect_at_eof", "1",
+                                "-reconnect_streamed", "1",
+                                "-reconnect_delay_max", "5",
+                                "-user_agent", ua,
+                                "-ss", start_str,
+                                "-i", v_url,
+                                "-t", str(duration_sec),
+                                "-c", "copy",
+                                str(target_file),
+                            ]
+
+                        res_ff = subprocess.run(cmd_ff, capture_output=True, text=True, timeout=120)
+                        if res_ff.returncode == 0 and target_file.exists() and target_file.stat().st_size > 500_000:
+                            try:
+                                probe_check = self.probe.probe(str(target_file))
+                                if probe_check.get("has_video") and probe_check.get("duration_ms", 0) > 10_000:
+                                    logger.info(f"Fallback stream footage verified: {target_file} ({target_file.stat().st_size / (1024*1024):.2f} MB)")
+                                    return target_file
+                                else:
+                                    target_file.unlink(missing_ok=True)
+                            except Exception as p_err:
+                                logger.warning(f"Fallback probe error: {p_err}")
+                                target_file.unlink(missing_ok=True)
+                        else:
+                            logger.warning(f"Fallback FFmpeg direct slice failed (code {res_ff.returncode}) on proxy {current_proxy.split('@')[-1]}")
+                except Exception as eg:
+                    logger.warning(f"Direct stream slice error: {eg}")
 
         # CRITICAL HARD QUALITY GATE: Never return dummy sample footage for social media publishing
         raise RuntimeError(f"Unable to download genuine live stream footage from {url}. Cycle aborted to prevent duplicate/dummy posting.")

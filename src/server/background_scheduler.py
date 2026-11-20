@@ -202,8 +202,12 @@ class AutonomousPublisherDaemon:
             if self.scavenge_counter % 15 == 0:
                 self._cleanup_temp_disk_space()
 
-            # Prioritize Curated Historic 'First-Time' events first, then continuous streams
-            next_first_time = self.ledger.get_next_scheduled_event()
+            # Prioritize Curated Historic 'First-Time' events: if ChiefSupervisorAgent is running,
+            # let it handle ledger events exclusively to prevent duplicate worker pickup.
+            from src.supervisor.hierarchy import chief_supervisor_instance
+            next_first_time = None
+            if not getattr(chief_supervisor_instance, "running", False):
+                next_first_time = self.ledger.get_next_scheduled_event()
             current_first_time_id = None
 
             if next_first_time:
