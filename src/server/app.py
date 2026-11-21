@@ -87,7 +87,7 @@ WEBHOOK_PATHS = {prefix + path for prefix in ("", "/api")
 @app.middleware("http")
 async def require_operator(request: Request, call_next):
     path = request.url.path
-    if path in WEBHOOK_PATHS or path == "/api/media/upload" or (
+    if path in WEBHOOK_PATHS or path in {"/api/media/upload", "/api/ledger/record_publish"} or (
         request.method in {"GET", "HEAD"} and (path in PUBLIC_PAGES or path.startswith("/media/"))
     ):
         return await call_next(request)
@@ -384,6 +384,32 @@ def diag_db():
                 "scheduled_events": scheduled,
                 "failed_events": failed,
             }
+    except Exception as e:
+        return {"status": "error", "error": str(e)}
+
+
+@app.post("/api/ledger/record_publish")
+async def record_publish(request: Request):
+    from src.db.database import get_db_session
+    from src.db.models import FirstTimeEvent
+    try:
+        payload = await request.json()
+        event_id = payload.get("event_id")
+        media_id = payload.get("media_id")
+        permalink = payload.get("permalink")
+        rendered_path = payload.get("rendered_path")
+        with get_db_session() as session:
+            ev = session.query(FirstTimeEvent).filter_by(id=event_id).first()
+            if ev:
+                ev.status = "PUBLISHED"
+                ev.rendered_clip_path = rendered_path
+                meta = dict(ev.metadata_json or {})
+                meta["media_id"] = media_id
+                meta["permalink"] = permalink
+                ev.metadata_json = meta
+                session.commit()
+                return {"status": "SUCCESS", "event_id": ev.id, "headline": ev.headline}
+        return {"status": "NOT_FOUND"}
     except Exception as e:
         return {"status": "error", "error": str(e)}
 
