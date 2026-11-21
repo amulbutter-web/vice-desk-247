@@ -65,7 +65,7 @@ class AutonomousPublisherDaemon:
     Targets 50 videos daily across 15 GTA 6 creators.
     """
 
-    def __init__(self, interval_sec: int = 600, target_daily_uploads: int = 50):
+    def __init__(self, interval_sec: int = 600, target_daily_uploads: int = 100):
         self.interval_sec = interval_sec
         self.target_daily_uploads = target_daily_uploads
         self.worker = LiveIngestWorker()

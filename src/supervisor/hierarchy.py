@@ -45,6 +45,11 @@ VIRAL_THEME_CATALOG = [
     {"topic": "Custom Lowrider Car Hydraulics & Sparks", "keywords": ["lowrider", "hydraulics", "suspension", "sparks", "custom"]},
     {"topic": "Ragdoll NPC Physics & Florida Man Brawls", "keywords": ["ragdoll", "npc", "fistfight", "punch", "florida man"]},
     {"topic": "Luxury Yacht Theft & Coast Guard Jet Ski Escape", "keywords": ["yacht", "jet ski", "coast guard", "ocean", "water physics"]},
+    {"topic": "Post-Story Final Mission Secrets & What Happens Next", "keywords": ["final mission", "ending", "after math", "beating gta", "finale", "credits", "100%"]},
+    {"topic": "Plane Jump & Impossible High-Altitude Survival", "keywords": ["jump", "plane", "airplane", "survived", "fall", "parachute", "skydiving", "glitch"]},
+    {"topic": "Uncontrollable Streamer Screams & Shock Reactions", "keywords": ["speed", "reaction", "screaming", "crying", "shocked", "speechless", "unreal"]},
+    {"topic": "Unhinged NPC Encounters & 'Bro Didn't Even Hesitate'", "keywords": ["hesitate", "npc", "knockout", "funny", "slap", "brawl", "crazy"]},
+    {"topic": "Mythical Creatures, Bigfoot & Giant Everglades Beasts", "keywords": ["bigfoot", "bear", "monster", "creature", "myth", "secret location", "easter egg"]},
 ]
 
 
@@ -157,15 +162,38 @@ class ClipSelectionAgent:
         self.role_id = "A03_CLIP_SELECTOR"
 
     def craft_viral_hook(self, creator: str, headline: str, context: str = "") -> str:
+        prompt = (
+            "You are an elite short-form viral editor for TikTok/Reels with millions of views. "
+            "Your job is to generate a 3 to 5 word, ALL-CAPS, high-CTR psychological curiosity hook "
+            "(e.g. 'WAIT FOR THE ENDING 💀', 'BRO DID NOT HESITATE 😭', 'WHAT HAPPENS AFTER ENDING', "
+            "'HE ACTUALLY SURVIVED?!', 'SPEED LOST HIS MIND 😂', 'LOOK AT WHAT HE FOUND'). "
+            "Never use punctuation except exclamation marks or emojis. Return ONLY the 3-5 word hook text."
+        )
         try:
-            return self.groq_pool.generate_viral_hook(
-                creator_name=creator,
-                game="GTA 6",
-                context_notes=f"{headline} {context}".strip(),
+            res = self.groq_pool.generate_chat(
+                messages=[
+                    {"role": "system", "content": prompt},
+                    {"role": "user", "content": f"Creator: {creator}\nMoment: {headline}\nContext: {context}\nHook:"},
+                ],
                 agent_role="A06_HOOK",
+                max_tokens=20,
+                temperature=0.7,
             )
+            cleaned = res.replace('"', '').replace("'", "").strip().upper()
+            hook_words = cleaned.split("\n")[0].split()
+            if len(hook_words) > 6:
+                return " ".join(hook_words[:5])
+            return " ".join(hook_words)
         except Exception:
-            return f"{creator.upper()} UNREAL GTA 6 BREAKTHROUGH"
+            try:
+                return self.groq_pool.generate_viral_hook(
+                    creator_name=creator,
+                    game="GTA 6",
+                    context_notes=f"{headline} {context}".strip(),
+                    agent_role="A06_HOOK",
+                )
+            except Exception:
+                return "WAIT FOR THE ENDING 💀🔥"
 
 
 class LayoutEditorAgent:
@@ -316,14 +344,15 @@ class ContentStrategyAndAnalyticsSupervisor:
         # Step 1: Trend opportunity evaluation
         trend_eval = self.scout.evaluate_trend_opportunity(creator, headline)
         
-        # Step 2: Use pre-computed viral_hook from ledger (avoids Groq call when keys are rate-limited)
-        # Only call Groq if the ledger hook is missing or empty
+        # Step 2: Ensure hook is a true punchy psychological curiosity hook (3-5 words, never raw headline dump)
         pre_hook = event.get("viral_hook", "").strip()
-        if pre_hook:
+        words = pre_hook.split()
+        if pre_hook and 2 <= len(words) <= 5 and not any(bad in pre_hook.lower() for bad in ["in gta 6", "vice city gameplay"]):
             hook = pre_hook
-            logger.info(f"[ContentSupervisor] Using pre-computed ledger hook for {creator}: {hook}")
+            logger.info(f"[ContentSupervisor] Using verified punchy hook for {creator}: {hook}")
         else:
-            hook = selector.craft_viral_hook(creator, headline)
+            hook = selector.craft_viral_hook(creator, headline, context=event.get("category", ""))
+            logger.info(f"[ContentSupervisor] Psychological Curiosity Hook generated via LLM for {creator}: {hook}")
         
         # Step 3: Format clean high-conversion metadata
         title = f"{headline} #Shorts #GTA6"
@@ -627,7 +656,7 @@ class ChiefSupervisorAgent:
                 "active_pipelines": self.concurrency_workers,
                 "uptime_minutes": round(uptime_min, 1),
                 "total_published_today": self.total_published,
-                "target_daily": 50,
+                "target_daily": 100,
                 "last_publish_utc": self.last_publish_time.isoformat(),
                 "model": "openai/gpt-oss-120b & qwen/qwen3.8-27b (Hybrid Strategic Reasoning)",
             },

@@ -39,7 +39,7 @@ SUPERVISOR_INSTRUCTIONS: Dict[str, Any] = {
     "version": "2.0.0",
     "directive": "AUTONOMOUS_CLOUD_SUPERVISOR",
     "primary_game": "GTA 6",
-    "target_daily_uploads": 50,
+    "target_daily_uploads": 100,
     "max_daily_quota": 100,
     "creator_count": 15,
     "target_creators": [
@@ -73,6 +73,19 @@ SUPERVISOR_INSTRUCTIONS: Dict[str, Any] = {
             "transliteration": "roman_hinglish",
         },
         "target_duration_sec": 70,
+        "hook_psychology": {
+            "style": "curiosity_gap_and_shock_value",
+            "max_words": 5,
+            "patterns": [
+                "WHAT HAPPENS AFTER FINAL MISSION",
+                "BRO DID NOT HESITATE",
+                "WAIT FOR THE ENDING",
+                "HE ACTUALLY SURVIVED",
+                "SPEED LOST HIS MIND",
+                "IMPOSSIBLE PHYSICS GLITCH"
+            ],
+            "anti_patterns": ["no generic titles", "no raw headline dumping", "no overlapping text"]
+        },
     },
     "storage_policy": {
         "auto_purge_raw_ingest": True,

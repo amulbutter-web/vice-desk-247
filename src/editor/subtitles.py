@@ -83,16 +83,18 @@ class SubtitleGenerator:
             f"Style: ViralMain,DejaVu Sans,Arial Black,80,&H00FFFFFF,&H0000FFFF,&H00000000,&H80000000,-1,0,0,0,100,100,2,0,1,7,3,2,60,60,420,1",
             # ViralActive: Golden popped highlight
             f"Style: ViralActive,DejaVu Sans,Arial Black,88,{active_color},&H0000FFFF,&H00000000,&H80000000,-1,0,0,0,118,118,2,0,1,8,4,2,60,60,420,1",
-            # HookBanner: Prominent top hook banner, high CTR
-            f"Style: HookBanner,DejaVu Sans,Arial Black,74,&H0000FFFF,&H00FFFFFF,&H00000000,&H80000000,-1,0,0,0,100,100,3,0,1,8,4,8,40,40,240,1",
+            # HookBanner: Clean, non-overlapping top curiosity banner (high CTR, never overlaps gameplay HUD or subtitles)
+            f"Style: HookBanner,DejaVu Sans,Arial Black,54,&H0000FFFF,&H00FFFFFF,&H00000000,&H80000000,-1,0,0,0,100,100,2,0,1,6,3,8,60,60,180,1",
             "",
             "[Events]",
             "Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text",
         ]
 
-        # 1. Top Hook Banner (Stays visible during hook window)
+        # 1. Top Hook Banner (Stays visible during hook window, auto-clamped to 5 words to prevent multi-line clutter)
         if hook_text and hook_text.strip():
-            clean_hook = hook_text.strip().upper()
+            raw_words = hook_text.strip().upper().split()
+            # Enforce max 6 words so banner never overflows or overlaps screen action
+            clean_hook = " ".join(raw_words[:6]) if len(raw_words) > 6 else " ".join(raw_words)
             hook_end_time = self._format_ass_time(hook_duration_ms)
             ass_lines.append(
                 f"Dialogue: 1,0:00:00.00,{hook_end_time},HookBanner,,0,0,0,,{clean_hook}"
