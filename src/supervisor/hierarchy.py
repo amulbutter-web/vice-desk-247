@@ -354,9 +354,14 @@ class ContentStrategyAndAnalyticsSupervisor:
             hook = selector.craft_viral_hook(creator, headline, context=event.get("category", ""))
             logger.info(f"[ContentSupervisor] Psychological Curiosity Hook generated via LLM for {creator}: {hook}")
         
-        # Step 3: Format clean high-conversion metadata
+        # Step 3: Format clean high-conversion metadata with psychological retention CTA
         title = f"{headline} #Shorts #GTA6"
-        caption = event.get("metadata", {}).get("caption", f"{headline} in GTA 6!")
+        raw_caption = event.get("metadata", {}).get("caption", "").strip()
+        if not raw_caption or len(raw_caption) < 20 or "craziest moments" in raw_caption.lower() or "playing gta 6 early access" in raw_caption.lower():
+            caption = f"Wait for the ending... {creator} was not ready for this! 💀🤯\n\n{headline}\n\nDid you expect this? Comment below! 👇"
+        else:
+            caption = raw_caption
+
         if f"Streamer: {creator}" not in caption:
             caption += f"\n\nStreamer: {creator}"
         if "#GTA6" not in caption:

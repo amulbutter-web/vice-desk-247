@@ -295,16 +295,16 @@ class StreamScoutAgent:
         # Fallback default
         if lang == "hi":
             return {
-                "hook": f"{creator.upper()} GTA 6 FIRST TIME REACTION 😱🔥",
-                "title": f"{creator} Playing GTA 6 Launch #Shorts #GTA6",
-                "caption": f"{creator} exploring Vice City for the first time in GTA 6! #GTA6 #ViceCity #Gaming",
+                "hook": f"{creator.upper()} UNSEEN GTA 6 MOMENT 😱🔥",
+                "title": f"What happened with {creator} in GTA 6?! #Shorts #GTA6",
+                "caption": f"Wait for the ending... {creator} was not ready for this. 💀\n\nDid you expect this? Drop your thoughts in comments! 👇\n\n#GTA6 #ViceCity #GTA6Moments #GamingReels #IndianGaming #ViralGaming",
                 "section_offset_sec": 900,
             }
         else:
             return {
-                "hook": f"{creator.upper()} BROKE GTA 6 EARLY ACCESS 💀🔥",
-                "title": f"{creator} GTA 6 Gameplay #Shorts #GTA6",
-                "caption": f"{creator} playing GTA 6 Early Access! The craziest moments in Vice City! #GTA6 #ViceCity #Shorts",
+                "hook": f"BRO WAS NOT READY 💀😭",
+                "title": f"Nobody expected this to happen in GTA 6 #Shorts #GTA6",
+                "caption": f"Watch till the end to see the full reaction... 🤯\n\nDid you see this coming? Drop a comment below! 👇\n\n#GTA6 #ViceCity #GamingMoments #ViralReels #GTA6Gameplay #Shorts",
                 "section_offset_sec": 900,
             }
 
