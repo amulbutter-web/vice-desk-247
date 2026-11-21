@@ -568,15 +568,15 @@ class ChiefSupervisorAgent:
                 time.sleep(30)
                 continue
 
-            # Circuit breaker: exponential backoff on consecutive failures
+            # Fast Circuit breaker: quick pause on failures, never freezing pipeline for minutes
             if consecutive_failures >= MAX_CONSECUTIVE_BEFORE_PAUSE:
-                logger.warning(f"[WORKER-{worker_id}] Auto-throttling ({consecutive_failures} fails) — sleeping 120s to allow proxy recovery")
-                time.sleep(120)
+                logger.warning(f"[WORKER-{worker_id}] Auto-throttling ({consecutive_failures} fails) — brief 30s recovery pause")
+                time.sleep(30)
                 consecutive_failures = 0
                 continue
             elif consecutive_failures >= MAX_CONSECUTIVE_BEFORE_BACKOFF:
-                backoff = min(300, 60 * (consecutive_failures - MAX_CONSECUTIVE_BEFORE_BACKOFF + 1))
-                logger.warning(f"[WORKER-{worker_id}] Backoff active ({consecutive_failures} fails) — sleeping {backoff}s")
+                backoff = min(30, 10 * (consecutive_failures - MAX_CONSECUTIVE_BEFORE_BACKOFF + 1))
+                logger.warning(f"[WORKER-{worker_id}] Backoff active ({consecutive_failures} fails) — brief {backoff}s pause")
                 time.sleep(backoff)
 
             try:

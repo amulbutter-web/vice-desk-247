@@ -26,38 +26,26 @@ from src.detection.first_time_ledger import FirstTimeLedger
 
 def trigger_super_agent_pipeline():
     print("=" * 65)
-    print("🚀 ENGAGING SUPREME AGENT ORGANIZATIONAL PYRAMID FOR GTA 6 REEL #56")
+    print("🚀 ENGAGING SUPREME AGENT ORGANIZATIONAL PYRAMID FOR GTA 6 REEL #58")
     print("=" * 65)
 
     chief = ChiefSupervisorAgent()
 
-    # The viral moment requested by user: IShowSpeed GTA 6 Final Mission / 100% Ending
+    # The high-emotion viral moment requested by user: GTA 6 Sad Ending (Jason Sacrifice)
     event = {
-        "id": "16167c49-54ea-4051-b30a-a061deaf408e",
-        "creator": "IShowSpeed",
-        "headline": "IShowSpeed Beats GTA 6 100% Final Mission In Vice City",
-        "stream_url": "https://www.youtube.com/watch?v=OIeLbmyraRQ",
-        "section_range": "*00:03:00-00:04:10",
-        "viral_hook": "SPEED BEATS GTA 6 FINAL MISSION 💀🔥",
-        "caption": """SPEED BEATS GTA 6 FINAL MISSION (100% ENDING) 💀🔥
-
-He actually did it! Speed just completed the final story mission in Grand Theft Auto VI! The climax, the ending cutscene, and his live reaction are unbelievable! 🤯✨
-
-Did Rockstar create the greatest storyline ending in gaming history? 1 to 10 mein rate karo! 👇
-
-Streamer: IShowSpeed
-
-#GTA6 #GTAVI #IShowSpeed #GTA6Ending #GTA6FinalMission #ViceCity #GTA6Story #GamingReels #ReelsViral #Shorts #RockstarGames #NextGenGaming""",
+        "id": "7864ba48-eb3f-4850-979e-95ca188fddaf",
+        "creator": "Promotion Zone",
+        "headline": "GTA 6 Sad Ending: Jason Sacrifices Himself To Save Lucia",
+        "stream_url": "https://www.youtube.com/watch?v=r9snEnWzBWA",
+        "section_range": "*00:01:15-00:02:20",
+        "viral_hook": "JASON SACRIFICED HIMSELF 😭💔",
+        "category": "EMOTIONAL_STORY_ENDING",
         "metadata": {
-            "caption": """SPEED BEATS GTA 6 FINAL MISSION (100% ENDING) 💀🔥
+            "caption": """Wait for the ending... Jason actually sacrificed himself for Lucia. 💔😭 Did you choose this ending? Comment your reaction below! 👇
 
-He actually did it! Speed just completed the final story mission in Grand Theft Auto VI! The climax, the ending cutscene, and his live reaction are unbelievable! 🤯✨
+Streamer: Promotion Zone
 
-Did Rockstar create the greatest storyline ending in gaming history? 1 to 10 mein rate karo! 👇
-
-Streamer: IShowSpeed
-
-#GTA6 #GTAVI #IShowSpeed #GTA6Ending #GTA6FinalMission #ViceCity #GTA6Story #GamingReels #ReelsViral #Shorts #RockstarGames #NextGenGaming"""
+#GTA6 #GTAVI #GTA6Ending #JasonAndLucia #SadEnding #GamingReels #ReelsViral #Shorts #RockstarGames #HindiGaming"""
         }
     }
 
@@ -100,7 +88,7 @@ Streamer: IShowSpeed
     permalink = pub_res.get("permalink") or f"https://www.instagram.com/reel/{remote_id}/"
 
     print("\n" + "=" * 65)
-    print(f"🎉 REEL #56 SUCCESSFULLY PUBLISHED TO INSTAGRAM REELS!")
+    print(f"🎉 REEL #58 SUCCESSFULLY PUBLISHED TO INSTAGRAM REELS!")
     print(f"   Target Account: @hritiksingh_8 (ID: 17841467596649798)")
     print(f"   Media ID:       {remote_id}")
     print(f"   Live Reel URL:  {permalink}")

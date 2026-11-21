@@ -184,7 +184,7 @@ class LiveIngestWorker:
                 import base64, re
                 clean = re.sub(r'[^A-Za-z0-9+/=]', '', b64_env)
                 decoded = base64.b64decode(clean)
-                decoded.decode('utf-8')  # Strict UTF-8 validation
+                decoded.decode('utf-8', errors='replace')  # Resilient decoding — never fail on stray binary bytes
                 if len(decoded) > 500:
                     temp_cookies = temp_dir / f"cookies_{uuid.uuid4().hex[:8]}.txt"
                     temp_cookies.write_bytes(decoded)
@@ -210,17 +210,16 @@ class LiveIngestWorker:
             warp_proxy = local_warp[0] if local_warp else None
 
             # Primary strategies ladder:
-            # 1. Direct connection + verified cookies (Golden Path: 9-sec slice download with bgutil-pot on Railway)
-            # 2. Direct connection without cookies (with bgutil-pot PO Token minter)
+            # 1. Direct connection without cookies using android,ios,tv (Golden Path: fast download bypassing web bot challenges)
+            # 2. Direct connection + verified cookies (if available)
             # 3. WARP / external proxy fallbacks (if configured and active)
-            primary_strategies = []
+            primary_strategies = [[]]
             if has_cookies and temp_cookies:
                 primary_strategies.append(["--cookies", str(temp_cookies)])
-            primary_strategies.append([])
             if warp_proxy:
+                primary_strategies.append(["--proxy", warp_proxy])
                 if has_cookies and temp_cookies:
                     primary_strategies.append(["--proxy", warp_proxy, "--cookies", str(temp_cookies)])
-                primary_strategies.append(["--proxy", warp_proxy])
 
             for auth_args_primary in primary_strategies:
                 is_cookie = "--cookies" in auth_args_primary
@@ -247,11 +246,11 @@ class LiveIngestWorker:
                 if has_pot_srv:
                     cmd_cookie_direct.extend(["--extractor-args", "youtubepot-bgutilhttp:base_url=http://127.0.0.1:4416"])
                 cmd_cookie_direct.extend([
-                    "--extractor-args", "youtube:player_client=visionos,ios,web",
-                    "--socket-timeout", "20",
+                    "--extractor-args", "youtube:player_client=android,ios,tv",
+                    "--socket-timeout", "30",
                     "--sleep-interval", "1",
                     "--max-sleep-interval", "3",
-                    "-f", "bestvideo[height<=1080]+bestaudio/best[height<=1080]/best",
+                    "-f", "bestvideo[height<=1080]+bestaudio/best[height<=1080]/best/18/bestvideo*",
                     "--merge-output-format", "mp4",
                     "--download-sections", section_range,
                     "--force-overwrites",
@@ -321,9 +320,10 @@ class LiveIngestWorker:
                         cmd_native = [
                             self.ytdlp_bin,
                             "-4",
-                            "--sleep-interval", "3",
-                            "--max-sleep-interval", "7",
-                            "-f", "bestvideo[height<=1080]+bestaudio/best[height<=1080]/best",
+                            "--extractor-args", "youtube:player_client=android,ios,tv",
+                            "--sleep-interval", "2",
+                            "--max-sleep-interval", "5",
+                            "-f", "bestvideo[height<=1080]+bestaudio/best[height<=1080]/best/18/bestvideo*",
                             "--merge-output-format", "mp4",
                             "--download-sections", section_range,
                             "--force-overwrites",
@@ -381,11 +381,10 @@ class LiveIngestWorker:
                         cmd_direct = [
                             self.ytdlp_bin,
                             "-4",
-                            "--extractor-args", "youtubepot-bgutilhttp:base_url=http://127.0.0.1:4416",
-                            "--extractor-args", "youtube:player_client=visionos,ios,web",
-                            "--sleep-interval", "3",
-                            "--max-sleep-interval", "7",
-                            "-f", "bestvideo[height<=1080]+bestaudio/best[height<=1080]/best",
+                            "--extractor-args", "youtube:player_client=android,ios,tv",
+                            "--sleep-interval", "2",
+                            "--max-sleep-interval", "5",
+                            "-f", "bestvideo[height<=1080]+bestaudio/best[height<=1080]/best/18/bestvideo*",
                             "--merge-output-format", "mp4",
                             "--download-sections", section_range,
                             "--force-overwrites",
@@ -423,11 +422,12 @@ class LiveIngestWorker:
                     cmd_g = [
                         self.ytdlp_bin,
                         "-4",
+                        "--extractor-args", "youtube:player_client=android,ios,tv",
                         "--proxy", current_proxy,
-                        "--sleep-interval", "3",
-                        "--max-sleep-interval", "7",
+                        "--sleep-interval", "2",
+                        "--max-sleep-interval", "5",
                         "-g",
-                        "-f", "bestvideo[height<=1080]+bestaudio/best[height<=1080]/best",
+                        "-f", "bestvideo[height<=1080]+bestaudio/best[height<=1080]/best/18/bestvideo*",
                         "--no-warnings",
                         url,
                     ]

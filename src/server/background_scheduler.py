@@ -289,19 +289,12 @@ class AutonomousPublisherDaemon:
 
                 if not res.get("qc_passed") or not video_path or not Path(video_path).exists():
                     fail_reason = res.get("reason", "")
-                    # Detect YouTube IP rate-limit — mark event FAILED and sleep until ban window clears
-                    if "rate-limited" in fail_reason.lower() or "genuine footage" in fail_reason.lower() or "Unable to download" in fail_reason.lower():
-                        youtube_rate_limited_until = time.time() + 3600  # Assume 1hr ban
-                        logger.warning("[DAEMON] YouTube IP rate-limited detected for %s — sleeping 10min. Instagram-only mode.", creator)
-                        if current_first_time_id:
-                            self.ledger.update_event_status(current_first_time_id, "FAILED", None)
-                        time.sleep(600)
-                        continue
-                    logger.warning("[DAEMON] No rendered output for %s — skipping social publish", creator)
+                    logger.warning("[DAEMON] Footage capture failed for %s (%s) — fast failover to next creator", creator, fail_reason[:150])
                     self.consecutive_errors += 1
                     if current_first_time_id:
                         self.ledger.update_event_status(current_first_time_id, "FAILED", None)
-                    time.sleep(60)
+                    # Fast failover: Never stall the whole pipeline for 10 min on single stream failures.
+                    time.sleep(10 if self.consecutive_errors < 5 else 30)
                     continue
 
                 v_file = Path(video_path)

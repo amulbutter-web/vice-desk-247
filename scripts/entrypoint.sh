@@ -35,7 +35,7 @@ fi
 VALID_COOKIES=0
 if [ -n "$YOUTUBE_COOKIES_BASE64" ]; then
     echo "[ENTRYPOINT] Detected YOUTUBE_COOKIES_BASE64 — validating UTF-8 Netscape cookie format..."
-    if python3 -c "import os, base64, re; raw = os.getenv('YOUTUBE_COOKIES_BASE64', ''); clean = re.sub(r'[^A-Za-z0-9+/=]', '', raw); data = base64.b64decode(clean) if clean else b''; data.decode('utf-8'); assert len(data) > 500; open('/tmp/youtube_cookies.txt', 'wb').write(data); open('/app/data/youtube_cookies.txt', 'wb').write(data)" 2>/dev/null; then
+    if python3 -c "import os, base64, re; raw = os.getenv('YOUTUBE_COOKIES_BASE64', ''); clean = re.sub(r'[^A-Za-z0-9+/=]', '', raw); data = base64.b64decode(clean) if clean else b''; data.decode('utf-8', errors='replace'); assert len(data) > 500; open('/tmp/youtube_cookies.txt', 'wb').write(data); open('/app/data/youtube_cookies.txt', 'wb').write(data)" 2>/dev/null; then
         chmod 600 /app/data/youtube_cookies.txt /tmp/youtube_cookies.txt 2>/dev/null || true
         COOKIE_SIZE=$(wc -c < /app/data/youtube_cookies.txt 2>/dev/null || echo 0)
         echo "[ENTRYPOINT] Valid cookies decoded from env: ${COOKIE_SIZE} bytes"
