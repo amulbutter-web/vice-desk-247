@@ -35,6 +35,9 @@ logger = logging.getLogger("agent_hierarchy")
 
 # High-yield viral GTA 6 themes to cross-reference for missed topics
 VIRAL_THEME_CATALOG = [
+    {"topic": "Emotional Story Ending & Jason Sacrifice (Lucia Survives)", "keywords": ["jason death", "lucia", "sacrifice", "sad ending", "emotional", "dies", "crying", "truth"]},
+    {"topic": "50+ Hour Marathon Gameplay Climax & Streamer Exhaustion", "keywords": ["50 hours", "52 hours", "100 hours", "marathon", "beating gta", "finally beat", "crying ending"]},
+    {"topic": "Secret Alternate Endings & Lucia's Betrayal", "keywords": ["secret ending", "alternate ending", "betrayal", "truth", "reveals", "good ending"]},
     {"topic": "5-Star Police Chase With SWAT & Choppers", "keywords": ["5-star", "swat", "police", "chopper", "chase"]},
     {"topic": "Store & Bank Robbery Clerk Reactions", "keywords": ["robbery", "gun store", "clerk", "hold up", "heist"]},
     {"topic": "Airport Jet Stealing & Runway Defense", "keywords": ["airport", "steal jet", "plane", "infiltrate", "runway"]},

@@ -22,15 +22,21 @@ from src.detection.first_time_ledger import FirstTimeLedger
 logger = logging.getLogger("youtube_scavenger")
 
 SEARCH_TOPICS = [
-    {"query": "GTA 6 airport exploration", "category": "AIRPORT_EXPLORATION", "priority": 12},
-    {"query": "GTA 6 gameplay live stream", "category": "LIVE_STREAM_HYPE", "priority": 11},
-    {"query": "GTA 6 secret locations and hidden areas", "category": "SECRET_LOCATIONS", "priority": 10},
+    {"query": "GTA 6 ending emotional scene Lucia Jason", "category": "EMOTIONAL_STORY_ENDING", "priority": 25},
+    {"query": "GTA 6 Jason death ending sacrifice", "category": "EMOTIONAL_STORY_ENDING", "priority": 24},
+    {"query": "GTA 6 ending streamer crying reaction", "category": "EMOTIONAL_STREAMER_REACTION", "priority": 23},
+    {"query": "GTA 6 beat the game in 50 hours ending", "category": "MARATHON_FINALE", "priority": 22},
+    {"query": "GTA 6 what happens after final mission", "category": "POST_GAME_AFTERMATH", "priority": 21},
+    {"query": "GTA 6 SAD ENDING In Hindi Lucia & Jason", "category": "EMOTIONAL_STORY_ENDING_HINDI", "priority": 20},
+    {"query": "GTA 6 plane jump survive without parachute", "category": "SURVIVAL_GLITCH", "priority": 18},
+    {"query": "GTA 6 secret creature Bigfoot in swamp", "category": "MYTHICAL_CREATURES", "priority": 16},
+    {"query": "IShowSpeed GTA 6 final mission ending", "category": "SPEED_ENDING", "priority": 15},
+    {"query": "CarryMinati GTA 6 Vice City ending", "category": "CARRY_VICE_CITY", "priority": 14},
+    {"query": "GTA 6 airport exploration", "category": "AIRPORT_EXPLORATION", "priority": 10},
     {"query": "GTA 6 5 star wanted military police chase", "category": "5_STAR_POLICE", "priority": 10},
-    {"query": "GTA 6 car tire blowout rim physics", "category": "VEHICLE_PHYSICS", "priority": 9},
-    {"query": "GTA 6 funny moments glitches Florida man", "category": "FUNNY_GLITCHES", "priority": 9},
-    {"query": "GTA 6 beach water physics alligator attack", "category": "BEACH_ALLIGATOR", "priority": 9},
-    {"query": "IShowSpeed GTA 6 gameplay", "category": "SPEED_GAMEPLAY", "priority": 12},
-    {"query": "CarryMinati GTA 6 Vice City", "category": "CARRY_VICE_CITY", "priority": 11},
+    {"query": "GTA 6 car tire blowout rim physics", "category": "VEHICLE_PHYSICS", "priority": 8},
+    {"query": "GTA 6 funny moments glitches Florida man", "category": "FUNNY_GLITCHES", "priority": 8},
+    {"query": "GTA 6 beach water physics alligator attack", "category": "BEACH_ALLIGATOR", "priority": 8},
 ]
 
 
