@@ -185,10 +185,12 @@ class LiveIngestWorker:
                 clean = re.sub(r'[^A-Za-z0-9+/=]', '', b64_env)
                 raw_bytes = base64.b64decode(clean)
                 clean_text = raw_bytes.decode('utf-8', errors='ignore')
-                if len(clean_text) > 500:
+                if len(clean_text) > 500 and ("__Secure-3PSID" in clean_text or "VISITOR_INFO1_LIVE" in clean_text) and "\x05" not in clean_text:
                     temp_cookies = temp_dir / f"cookies_{uuid.uuid4().hex[:8]}.txt"
                     temp_cookies.write_text(clean_text, encoding='utf-8')
                     temp_cookies.chmod(0o600)
+                else:
+                    logger.warning("[INGEST] YOUTUBE_COOKIES_BASE64 contains corrupt/invalid tokens — discarding and using repository cookies")
             except Exception as _ce:
                 logger.warning(f"[INGEST] Failed to validate YOUTUBE_COOKIES_BASE64: {_ce} — falling back to repository cookies")
 

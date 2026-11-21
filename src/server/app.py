@@ -250,12 +250,12 @@ def diag_ytdlp(
             try:
                 clean = re.sub(r'[^A-Za-z0-9+/=]', '', b64_env)
                 decoded = base64.b64decode(clean)
-                decoded.decode('utf-8')  # Strict UTF-8 validation
-                if len(decoded) > 500:
+                text = decoded.decode('utf-8', errors='ignore')
+                if len(text) > 500 and ("__Secure-3PSID" in text or "VISITOR_INFO1_LIVE" in text) and "\x05" not in text:
                     temp_dir = Path("/tmp") if Path("/tmp").exists() else Path("data/temp")
                     temp_dir.mkdir(parents=True, exist_ok=True)
                     temp_cookie_path = temp_dir / f"diag_cookie_{uuid.uuid4().hex[:8]}.txt"
-                    temp_cookie_path.write_bytes(decoded)
+                    temp_cookie_path.write_text(text, encoding='utf-8')
                     temp_cookie_path.chmod(0o600)
             except Exception:
                 pass
@@ -266,7 +266,9 @@ def diag_ytdlp(
                     temp_dir = Path("/tmp") if Path("/tmp").exists() else Path("data/temp")
                     temp_dir.mkdir(parents=True, exist_ok=True)
                     temp_cookie_path = temp_dir / f"diag_cookie_{uuid.uuid4().hex[:8]}.txt"
-                    shutil.copy2(cand, temp_cookie_path)
+                    content = cand.read_text(encoding='utf-8', errors='ignore')
+                    temp_cookie_path.write_text(content, encoding='utf-8')
+                    temp_cookie_path.chmod(0o600)
                     break
 
     cmd = [
