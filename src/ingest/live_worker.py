@@ -183,11 +183,11 @@ class LiveIngestWorker:
             try:
                 import base64, re
                 clean = re.sub(r'[^A-Za-z0-9+/=]', '', b64_env)
-                decoded = base64.b64decode(clean)
-                decoded.decode('utf-8', errors='replace')  # Resilient decoding — never fail on stray binary bytes
-                if len(decoded) > 500:
+                raw_bytes = base64.b64decode(clean)
+                clean_text = raw_bytes.decode('utf-8', errors='ignore')
+                if len(clean_text) > 500:
                     temp_cookies = temp_dir / f"cookies_{uuid.uuid4().hex[:8]}.txt"
-                    temp_cookies.write_bytes(decoded)
+                    temp_cookies.write_text(clean_text, encoding='utf-8')
                     temp_cookies.chmod(0o600)
             except Exception as _ce:
                 logger.warning(f"[INGEST] Failed to validate YOUTUBE_COOKIES_BASE64: {_ce} — falling back to repository cookies")
@@ -196,8 +196,10 @@ class LiveIngestWorker:
             for cand in [Path("/app/data/youtube_cookies.txt"), Path("data/youtube_cookies.txt"), Path("/tmp/youtube_cookies.txt")]:
                 if cand.exists() and cand.stat().st_size > 500:
                     try:
+                        content = cand.read_text(encoding='utf-8', errors='ignore')
                         temp_cookies = temp_dir / f"cookies_{uuid.uuid4().hex[:8]}.txt"
-                        shutil.copy2(cand, temp_cookies)
+                        temp_cookies.write_text(content, encoding='utf-8')
+                        temp_cookies.chmod(0o600)
                         break
                     except Exception as _tce:
                         logger.warning(f"Failed to copy cookies to temp file: {_tce}")
@@ -210,16 +212,17 @@ class LiveIngestWorker:
             warp_proxy = local_warp[0] if local_warp else None
 
             # Primary strategies ladder:
-            # 1. Direct connection without cookies using android,ios,tv (Golden Path: fast download bypassing web bot challenges)
-            # 2. Direct connection + verified cookies (if available)
+            # 1. Direct connection + verified cookies (Golden Path: fastest, avoids bot check)
+            # 2. Direct connection without cookies using android,ios,tv
             # 3. WARP / external proxy fallbacks (if configured and active)
-            primary_strategies = [[]]
+            primary_strategies = []
             if has_cookies and temp_cookies:
                 primary_strategies.append(["--cookies", str(temp_cookies)])
+            primary_strategies.append([])
             if warp_proxy:
-                primary_strategies.append(["--proxy", warp_proxy])
                 if has_cookies and temp_cookies:
                     primary_strategies.append(["--proxy", warp_proxy, "--cookies", str(temp_cookies)])
+                primary_strategies.append(["--proxy", warp_proxy])
 
             for auth_args_primary in primary_strategies:
                 is_cookie = "--cookies" in auth_args_primary
