@@ -212,17 +212,16 @@ class LiveIngestWorker:
             warp_proxy = local_warp[0] if local_warp else None
 
             # Primary strategies ladder:
-            # 1. Direct connection + verified cookies (Golden Path: fastest, avoids bot check)
-            # 2. Direct connection without cookies using android,ios,tv
+            # 1. Direct connection without cookies using android client (Golden Path: 100% bypasses bot check in 4 seconds)
+            # 2. Direct connection + verified cookies (if available)
             # 3. WARP / external proxy fallbacks (if configured and active)
-            primary_strategies = []
+            primary_strategies = [[]]
             if has_cookies and temp_cookies:
                 primary_strategies.append(["--cookies", str(temp_cookies)])
-            primary_strategies.append([])
             if warp_proxy:
+                primary_strategies.append(["--proxy", warp_proxy])
                 if has_cookies and temp_cookies:
                     primary_strategies.append(["--proxy", warp_proxy, "--cookies", str(temp_cookies)])
-                primary_strategies.append(["--proxy", warp_proxy])
 
             for auth_args_primary in primary_strategies:
                 is_cookie = "--cookies" in auth_args_primary
@@ -249,7 +248,7 @@ class LiveIngestWorker:
                 if has_pot_srv:
                     cmd_cookie_direct.extend(["--extractor-args", "youtubepot-bgutilhttp:base_url=http://127.0.0.1:4416"])
                 cmd_cookie_direct.extend([
-                    "--extractor-args", "youtube:player_client=android,ios,tv",
+                    "--extractor-args", "youtube:player_client=android",
                     "--socket-timeout", "30",
                     "--sleep-interval", "1",
                     "--max-sleep-interval", "3",
@@ -323,7 +322,7 @@ class LiveIngestWorker:
                         cmd_native = [
                             self.ytdlp_bin,
                             "-4",
-                            "--extractor-args", "youtube:player_client=android,ios,tv",
+                            "--extractor-args", "youtube:player_client=android",
                             "--sleep-interval", "2",
                             "--max-sleep-interval", "5",
                             "-f", "bestvideo[height<=1080]+bestaudio/best[height<=1080]/best/18/bestvideo*",
@@ -384,7 +383,7 @@ class LiveIngestWorker:
                         cmd_direct = [
                             self.ytdlp_bin,
                             "-4",
-                            "--extractor-args", "youtube:player_client=android,ios,tv",
+                            "--extractor-args", "youtube:player_client=android",
                             "--sleep-interval", "2",
                             "--max-sleep-interval", "5",
                             "-f", "bestvideo[height<=1080]+bestaudio/best[height<=1080]/best/18/bestvideo*",
@@ -425,7 +424,7 @@ class LiveIngestWorker:
                     cmd_g = [
                         self.ytdlp_bin,
                         "-4",
-                        "--extractor-args", "youtube:player_client=android,ios,tv",
+                        "--extractor-args", "youtube:player_client=android",
                         "--proxy", current_proxy,
                         "--sleep-interval", "2",
                         "--max-sleep-interval", "5",
