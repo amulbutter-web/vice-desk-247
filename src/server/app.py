@@ -78,7 +78,8 @@ app.add_middleware(
 PUBLIC_PAGES = {"/privacy", "/privacy-policy", "/terms", "/terms-of-service", "/data-deletion",
                 "/deletion", "/app_icon.png", "/icon.png", "/api/health",
                 "/api/daemon/status", "/api/accounts/instagram/status", "/api/supervisor/directive", "/api/diag/ytdlp",
-                "/api/diag/pot", "/api/diag/warp", "/api/supervisor/hierarchy", "/api/diag/sync_cookies"}
+                "/api/diag/pot", "/api/diag/warp", "/api/supervisor/hierarchy", "/api/diag/sync_cookies",
+                "/api/diag/db", "/api/trends/first-times"}
 WEBHOOK_PATHS = {prefix + path for prefix in ("", "/api")
                  for path in ("/webhooks/instagram", "/webhook/instagram")}
 
@@ -359,6 +360,32 @@ def diag_pot():
     except Exception as pe:
         results["/get_pot_post"] = {"error": str(pe)}
     return results
+
+
+@app.get("/api/diag/db")
+def diag_db():
+    from src.db.database import get_db_session
+    from src.db.models import FirstTimeEvent
+    from src.config import settings
+    try:
+        with get_db_session() as session:
+            count = session.query(FirstTimeEvent).count()
+            published = session.query(FirstTimeEvent).filter_by(status="PUBLISHED").count()
+            scheduled = session.query(FirstTimeEvent).filter_by(status="SCHEDULED").count()
+            failed = session.query(FirstTimeEvent).filter_by(status="FAILED").count()
+            db_type = "postgresql" if "postgresql" in settings.db_url or "postgres" in settings.db_url else ("sqlite" if "sqlite" in settings.db_url else "unknown")
+            host = settings.db_url.split("@")[-1].split("/")[0] if "@" in settings.db_url else "local"
+            return {
+                "status": "connected",
+                "db_type": db_type,
+                "db_host": host,
+                "total_events": count,
+                "published_events": published,
+                "scheduled_events": scheduled,
+                "failed_events": failed,
+            }
+    except Exception as e:
+        return {"status": "error", "error": str(e)}
 
 
 @app.get("/api/diag/warp")

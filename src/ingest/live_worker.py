@@ -228,10 +228,25 @@ class LiveIngestWorker:
                 proxy_label = [auth_args_primary[i+1] for i, a in enumerate(auth_args_primary) if a == "--proxy"]
                 proxy_str = proxy_label[0] if proxy_label else "direct"
                 logger.info(f"[INGEST] Downloading stream footage [{section_range}] via yt-dlp ({proxy_str}, cookies={'yes' if is_cookie else 'no'})...")
+                
+                # Check if local bgutil-pot service on 4416 is actually listening
+                import socket
+                has_pot_srv = False
+                try:
+                    s_pot = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+                    s_pot.settimeout(0.2)
+                    has_pot_srv = (s_pot.connect_ex(("127.0.0.1", 4416)) == 0)
+                    s_pot.close()
+                except Exception:
+                    pass
+
                 cmd_cookie_direct = [
                     self.ytdlp_bin,
                     "-4",
-                    "--extractor-args", "youtubepot-bgutilhttp:base_url=http://127.0.0.1:4416",
+                ]
+                if has_pot_srv:
+                    cmd_cookie_direct.extend(["--extractor-args", "youtubepot-bgutilhttp:base_url=http://127.0.0.1:4416"])
+                cmd_cookie_direct.extend([
                     "--extractor-args", "youtube:player_client=visionos,ios,web",
                     "--socket-timeout", "20",
                     "--sleep-interval", "1",
@@ -242,7 +257,8 @@ class LiveIngestWorker:
                     "--force-overwrites",
                     "--no-playlist",
                     "--no-warnings",
-                ] + auth_args_primary + [
+                ])
+                cmd_cookie_direct += auth_args_primary + [
                     "-o", str(target_file),
                     url,
                 ]
@@ -260,7 +276,7 @@ class LiveIngestWorker:
                         probe_check = self.probe.probe(str(actual_file))
                         if probe_check.get("has_video") and probe_check.get("duration_ms", 0) > 10_000:
                             logger.info(f"[INGEST] Direct capture SUCCESS ({proxy_str}, cookies={'yes' if is_cookie else 'no'}): {actual_file} ({actual_file.stat().st_size / (1024*1024):.2f} MB)")
-                            if temp_cookies and temp_cookies.exists() and temp_cookies != cookies_cand:
+                            if temp_cookies and temp_cookies.exists():
                                 temp_cookies.unlink(missing_ok=True)
                             return actual_file
                         else:
@@ -295,8 +311,8 @@ class LiveIngestWorker:
             for p_idx, current_proxy in enumerate(candidate_proxies):
                 # Determine auth strategies for this proxy: first with cookies (if any), then without cookies
                 strategies = []
-                if has_cookies:
-                    strategies.append(["--cookies", str(cookies_cand), "--proxy", current_proxy])
+                if has_cookies and temp_cookies:
+                    strategies.append(["--cookies", str(temp_cookies), "--proxy", current_proxy])
                 strategies.append(["--proxy", current_proxy])
 
                 for auth_args in strategies:

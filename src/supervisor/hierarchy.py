@@ -227,6 +227,30 @@ class PublisherAgent:
         filename = p.name
         public_url = f"https://vice-desk-intelligence-production.up.railway.app/media/{filename}"
         
+        # Verify if video is reachable on Railway; if not, upload via /api/media/upload
+        import urllib.request
+        needs_upload = True
+        try:
+            req_head = urllib.request.Request(public_url, method="HEAD")
+            with urllib.request.urlopen(req_head, timeout=5) as r_head:
+                if r_head.status == 200:
+                    needs_upload = False
+        except Exception:
+            needs_upload = True
+
+        if needs_upload and p.exists():
+            logger.info(f"[PublisherAgent] Uploading {filename} ({p.stat().st_size / (1024*1024):.2f} MB) to Railway Media Server...")
+            upload_url = f"https://vice-desk-intelligence-production.up.railway.app/api/media/upload?filename={filename}"
+            with open(p, "rb") as f_data:
+                req_up = urllib.request.Request(
+                    upload_url,
+                    data=f_data.read(),
+                    headers={"Content-Type": "video/mp4"},
+                    method="POST",
+                )
+                with urllib.request.urlopen(req_up, timeout=120) as r_up:
+                    logger.info(f"[PublisherAgent] Railway upload status: {r_up.status}")
+
         container_id = self.ig_publisher.create_reel_container(
             video_url=public_url,
             caption=caption,
@@ -238,7 +262,19 @@ class PublisherAgent:
                 container_id=container_id,
                 account_ref=self.ig_publisher.account_id,
             )
-            return {"status": "PUBLISHED", "remote_id": res.get("remote_id")}
+            media_id = res.get("remote_id")
+            permalink = None
+            try:
+                time.sleep(2)
+                tok = self.ig_publisher.access_token
+                p_url = f"https://graph.facebook.com/v19.0/{media_id}?fields=permalink,shortcode&access_token={tok}"
+                req_p = urllib.request.Request(p_url, headers={"User-Agent": "Mozilla/5.0"})
+                with urllib.request.urlopen(req_p, timeout=10) as r_p:
+                    p_data = json.loads(r_p.read().decode())
+                    permalink = p_data.get("permalink")
+            except Exception:
+                permalink = f"https://www.instagram.com/reel/{media_id}/"
+            return {"status": "PUBLISHED", "remote_id": media_id, "permalink": permalink}
         raise PublishingError(f"Instagram container did not reach FINISHED state (status: {status})")
 
 
